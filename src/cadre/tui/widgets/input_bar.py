@@ -17,6 +17,7 @@ class AgentSuggester(Suggester):
         self.agent_names = agent_names
         self.slash_commands = [
             "/help",
+            "/init",
             "/status",
             "/settings",
             "/quit",
