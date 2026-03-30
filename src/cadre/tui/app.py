@@ -46,9 +46,15 @@ class CadreTUI(App):
         self.theme_registry = ThemeRegistry(project_path=Path.cwd())
 
         # Set CSS path based on configured theme (must be before super().__init__
+<<<<<<< fix-tui-css-path-init
+        # because Textual's __init__ accesses CSS_PATH)
+=======
         # because Textual reads CSS_PATH during App.__init__)
+>>>>>>> main
         theme_name = config.ui.theme
         self._css_path = [self.theme_registry.get_css_path(theme_name)]
+
+        super().__init__()
 
         super().__init__()
 
