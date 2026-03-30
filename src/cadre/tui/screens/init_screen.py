@@ -93,9 +93,9 @@ class InitScreen(Screen[CadreConfig | None]):
     }
 
     #init-container {
-        width: 70;
+        width: 60;
         height: auto;
-        max-height: 90%;
+        max-height: 80%;
         background: #1e1e2e;
         border: thick #313244;
         padding: 1 2;
@@ -108,20 +108,8 @@ class InitScreen(Screen[CadreConfig | None]):
         margin-bottom: 1;
     }
 
-    .section-label {
-        text-style: bold;
-        color: #cdd6f4;
-        margin-top: 1;
-    }
-
     .field-label {
         color: #6c7086;
-        margin-top: 1;
-    }
-
-    .detected-info {
-        color: #a6e3a1;
-        margin-bottom: 1;
     }
 
     Input {
@@ -139,16 +127,6 @@ class InitScreen(Screen[CadreConfig | None]):
 
     .api-status {
         color: #a6e3a1;
-    }
-
-    .api-missing {
-        color: #6c7086;
-    }
-
-    .api-warning {
-        color: #f9e2af;
-        text-style: bold;
-        margin-bottom: 1;
     }
 
     .api-key-input {
@@ -175,85 +153,34 @@ class InitScreen(Screen[CadreConfig | None]):
         with Vertical(id="init-container"):
             yield Label("OpenCadre Setup", id="init-title")
 
-            # Detection info
-            if self.detection.details:
-                yield Static(
-                    "[dim]" + " | ".join(self.detection.details) + "[/dim]",
-                    classes="detected-info",
-                )
-
-            # Project section
-            yield Label("Project", classes="section-label")
-
-            yield Label("Name", classes="field-label")
+            # Project name
+            yield Label("Project name", classes="field-label")
             default_name = self.detection.project_name or self.base_path.name
             yield Input(value=default_name, id="project-name")
 
-            yield Label("Type", classes="field-label")
-            detected_type = self.detection.project_type or "generic"
-            yield Select(
-                [(t, t) for t in ["dbt", "generic"]],
-                value=detected_type,
-                id="project-type",
-            )
-
-            yield Label("Warehouse", classes="field-label")
-            detected_wh = self.detection.warehouse or "snowflake"
-            yield Select(
-                [
-                    (w, w)
-                    for w in [
-                        "snowflake",
-                        "bigquery",
-                        "redshift",
-                        "postgres",
-                        "databricks",
-                        "duckdb",
-                    ]
-                ],
-                value=detected_wh,
-                id="warehouse",
-            )
-
-            # API Keys section
-            yield Label("API Keys", classes="section-label")
-            any_key_set = any(os.environ.get(v) for v in PROVIDER_ENV_VARS.values())
-            if not any_key_set:
-                yield Static(
-                    "⚠ No API keys found in environment. Enter a key below or set env vars.",
-                    classes="api-warning",
+            # API key — show one field if no key is set
+            has_any_key = any(os.environ.get(v) for v in PROVIDER_ENV_VARS.values())
+            if has_any_key:
+                yield Static("[green]✓[/green] API key detected", classes="api-status")
+            else:
+                yield Label("Anthropic API key", classes="field-label")
+                yield Input(
+                    placeholder="sk-ant-...",
+                    password=True,
+                    id="api-key-anthropic",
+                    classes="api-key-input",
                 )
-            for provider, env_var in PROVIDER_ENV_VARS.items():
-                env_value = os.environ.get(env_var)
-                if env_value:
-                    masked = env_value[:4] + "..." + env_value[-4:]
-                    yield Static(
-                        f"  [green]✓[/green] {provider}: {masked} (from ${env_var})",
-                        classes="api-status",
-                    )
-                else:
-                    yield Static(
-                        f"  {provider} (${env_var}):",
-                        classes="api-missing",
-                    )
-                    yield Input(
-                        placeholder=f"Paste {provider} API key (optional)",
-                        password=True,
-                        id=f"api-key-{provider}",
-                        classes="api-key-input",
-                    )
 
-            # Team section
-            yield Label("Team", classes="section-label")
-
-            yield Label("Mode", classes="field-label")
+            # Team mode
+            yield Label("Team mode", classes="field-label")
             yield Select(
                 [("Full team (4 agents)", "full"), ("Solo (1 agent)", "solo")],
                 value="full",
                 id="team-mode",
             )
 
-            yield Label("Model Strategy", classes="field-label")
+            # Strategy
+            yield Label("Model strategy", classes="field-label")
             strategy_options = [
                 Option(f"{name:10s} — {s['description']}", id=name)
                 for name, s in STRATEGIES.items()
@@ -280,8 +207,8 @@ class InitScreen(Screen[CadreConfig | None]):
     def _create_project(self) -> None:
         """Build config and save."""
         project_name = self.query_one("#project-name", Input).value or self.base_path.name
-        project_type = self.query_one("#project-type", Select).value or "generic"
-        warehouse = self.query_one("#warehouse", Select).value or "snowflake"
+        project_type = self.detection.project_type or "generic"
+        warehouse = self.detection.warehouse or "snowflake"
         mode = self.query_one("#team-mode", Select).value or "full"
 
         # Get selected strategy
@@ -298,17 +225,20 @@ class InitScreen(Screen[CadreConfig | None]):
             env_value = os.environ.get(env_var)
             if env_value:
                 providers[provider] = ProviderConfig(api_key=f"${{{env_var}}}")
-            else:
-                # Check if user entered a key manually
-                try:
-                    key_input = self.query_one(f"#api-key-{provider}", Input)
-                    manual_key = key_input.value.strip()
-                    if manual_key:
-                        entered_keys[provider] = manual_key
-                        key_set(self.base_path, provider=provider, value=manual_key)
-                        providers[provider] = ProviderConfig(api_key=f"${{{env_var}}}")
-                except Exception:
-                    pass
+
+        # Check if user entered an anthropic key manually
+        try:
+            key_input = self.query_one("#api-key-anthropic", Input)
+            manual_key = key_input.value.strip()
+            if manual_key:
+                entered_keys["anthropic"] = manual_key
+                key_set(self.base_path, provider="anthropic", value=manual_key)
+                providers["anthropic"] = ProviderConfig(
+                    api_key=f"${{{PROVIDER_ENV_VARS['anthropic']}}}"
+                )
+        except Exception:
+            pass
+
         if not providers:
             providers["anthropic"] = ProviderConfig(
                 api_key=f"${{{PROVIDER_ENV_VARS['anthropic']}}}"
