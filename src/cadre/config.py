@@ -35,7 +35,7 @@ class ProviderConfig(BaseModel):
 class AgentConfig(BaseModel):
     """Per-agent configuration — loaded from .cadre/agents/<name>.yml."""
 
-    model: str = "anthropic/claude-sonnet-4-6"
+    model: str = ""
     enabled: bool = True
     extra_context: str = ""
 
@@ -46,10 +46,10 @@ class TeamConfig(BaseModel):
     mode: str = "full"  # full | solo
     agents: dict[str, AgentConfig] = Field(
         default_factory=lambda: {
-            "lead": AgentConfig(model="anthropic/claude-opus-4-6"),
-            "architect": AgentConfig(model="anthropic/claude-sonnet-4-6"),
-            "engineer": AgentConfig(model="anthropic/claude-sonnet-4-6"),
-            "qa": AgentConfig(model="anthropic/claude-sonnet-4-6"),
+            "lead": AgentConfig(model=AUTO_MODEL),
+            "architect": AgentConfig(model=AUTO_MODEL),
+            "engineer": AgentConfig(model=AUTO_MODEL),
+            "qa": AgentConfig(model=AUTO_MODEL),
         }
     )
 
@@ -95,6 +95,28 @@ class ProjectContext(BaseModel):
     notes: str = ""
 
 
+# Top-tier models per provider — used for lead agent in "auto" mode
+TOP_TIER_MODELS: dict[str, str] = {
+    "anthropic": "anthropic/claude-opus-4-6",
+    "openai": "openai/o3",
+    "google": "google/gemini-2.5-pro",
+    "deepseek": "deepseek/deepseek-reasoner",
+    "ollama": "ollama/llama3.3-70b",
+}
+
+# Mid-tier models per provider — used for worker agents in "auto" mode
+MID_TIER_MODELS: dict[str, str] = {
+    "anthropic": "anthropic/claude-sonnet-4-6",
+    "openai": "openai/gpt-4o",
+    "google": "google/gemini-2.0-flash",
+    "deepseek": "deepseek/deepseek-chat",
+    "ollama": "ollama/llama3.3-70b",
+}
+
+# Agent model value that triggers auto-selection
+AUTO_MODEL = "auto"
+
+
 class UIConfig(BaseModel):
     """TUI display configuration."""
 
@@ -117,15 +139,34 @@ class CadreConfig(BaseModel):
     ui: UIConfig = Field(default_factory=UIConfig)
 
     def get_model(self, agent_name: str) -> str:
-        """Get the model string for an agent, with fallback to solo model."""
+        """Get the model string for an agent.
+
+        If model is "auto" or empty, auto-selects based on the agent's role:
+        - lead: top-tier model from the first configured provider
+        - all others: mid-tier model from the first configured provider
+        """
         if self.team.mode == "solo":
             solo_config = self.team.agents.get("solo")
-            if solo_config:
+            if solo_config and solo_config.model and solo_config.model != AUTO_MODEL:
                 return solo_config.model
         agent_config = self.team.agents.get(agent_name)
-        if agent_config:
+        if agent_config and agent_config.model and agent_config.model != AUTO_MODEL:
             return agent_config.model
-        return "anthropic/claude-sonnet-4-6"
+        # Auto mode: lead gets top-tier, everyone else mid-tier
+        is_lead = agent_name == "lead"
+        return self._resolve_auto_model(top_tier=is_lead)
+
+    def _resolve_auto_model(self, top_tier: bool = False) -> str:
+        """Pick a model from the first configured provider."""
+        import os
+
+        from cadre.keys import PROVIDER_ENV_VARS
+
+        tier = TOP_TIER_MODELS if top_tier else MID_TIER_MODELS
+        for provider, env_var in PROVIDER_ENV_VARS.items():
+            if provider in self.providers or os.environ.get(env_var):
+                return tier.get(provider, f"{provider}/default")
+        return tier["anthropic"]
 
     def get_agent_config(self, agent_name: str) -> AgentConfig:
         """Get config for a specific agent."""

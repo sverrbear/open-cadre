@@ -34,9 +34,10 @@ def main(ctx):
 @main.command()
 def init():
     """Interactive setup — creates .cadre/ config directory."""
-    from cadre.init import run_init
-
-    run_init()
+    console.print(
+        "Run [bold]cadre up[/bold] and then type [bold]/init[/bold] to set up your project."
+    )
+    console.print()
 
 
 @main.command()
@@ -448,7 +449,7 @@ def _show_welcome() -> None:
     else:
         console.print("  [yellow]No project configured yet.[/yellow]")
         console.print()
-        console.print("  [bold]cadre init[/bold]    Set up your project")
+        console.print("  [bold]cadre up[/bold]      Start the TUI, then type /init")
 
     console.print()
     console.print("  [dim]Run [bold]cadre --help[/bold] for all commands.[/dim]")

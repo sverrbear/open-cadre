@@ -265,6 +265,7 @@ class CadreTUI(App):
                     "[bold]Commands:[/bold]\n"
                     "  /help                         Show this help\n"
                     "  /init                         Initialize/reconfigure project\n"
+                    "  /agents                       View and configure agents\n"
                     "  /keys                         Show API key status\n"
                     "  /keys set <provider> <key>    Set an API key\n"
                     "  /models                       Show configured models\n"
@@ -308,6 +309,8 @@ class CadreTUI(App):
                 sidebar.display = True
         elif cmd in ("/settings", "/config"):
             self.action_open_settings()
+        elif cmd == "/agents":
+            self._run_agents()
         elif cmd == "/doctor":
             self._show_doctor()
         elif cmd == "/workflow":
@@ -462,6 +465,38 @@ class CadreTUI(App):
                 lines.append(f"    {name}")
         team_pane.log.write("\n".join(lines) + "\n")
 
+    def _run_agents(self) -> None:
+        """Show the agents screen for viewing/editing agent configuration."""
+        from cadre.tui.screens.agents_screen import AgentsScreen
+
+        self.push_screen(AgentsScreen(config=self.config), callback=self._on_agents_result)
+
+    def _on_agents_result(self, result: CadreConfig | None) -> None:
+        """Handle agents screen result — reload team with updated config."""
+        if result is None:
+            return
+
+        self.config = result
+        self.team = Team(config=self.config)
+        setup_error: str | None = None
+        try:
+            self.team.setup()
+        except Exception as e:
+            from cadre.errors import classify_llm_error, format_error_for_display
+
+            setup_error = format_error_for_display(classify_llm_error(e))
+
+        self.router = MessageRouter(team=self.team)
+        if not setup_error:
+            self.team.inject_router(self.router)
+        self.bridge = EventBridge(app=self, router=self.router)
+        self.pop_screen()
+        self.main_screen = MainScreen(config=self.config, team=self.team)
+        self.push_screen(self.main_screen)
+
+        if setup_error:
+            self.call_after_refresh(lambda: self._show_setup_error(setup_error))
+
     def _run_init(self) -> None:
         """Show the init screen for project setup."""
         from cadre.tui.screens.init_screen import InitScreen
@@ -495,6 +530,17 @@ class CadreTUI(App):
 
         if setup_error:
             self.call_after_refresh(lambda: self._show_setup_error(setup_error))
+        else:
+            self.call_after_refresh(self._show_agents_hint)
+
+    def _show_agents_hint(self) -> None:
+        """Prompt the user to configure agents after init."""
+        team_pane = self._get_team_pane()
+        if team_pane:
+            team_pane.log.write(
+                "[green]Project created![/green] "
+                "Type [bold]/agents[/bold] to view and configure your team.\n"
+            )
 
     def action_toggle_sidebar(self) -> None:
         """Toggle the status sidebar visibility."""
