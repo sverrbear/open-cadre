@@ -18,11 +18,13 @@ if TYPE_CHECKING:
 console = Console()
 
 
-@click.group()
+@click.group(invoke_without_command=True)
 @click.version_option(version=__version__, prog_name="cadre")
-def main():
+@click.pass_context
+def main(ctx):
     """OpenCadre — Provider-agnostic AI team platform for data engineering."""
-    pass
+    if ctx.invoked_subcommand is None:
+        _show_welcome()
 
 
 @main.command()
@@ -230,7 +232,6 @@ def doctor():
         "anthropic": "ANTHROPIC_API_KEY",
         "openai": "OPENAI_API_KEY",
         "google": "GOOGLE_API_KEY",
-        "mistral": "MISTRAL_API_KEY",
     }
     found_providers = False
     for provider, env_var in provider_vars.items():
@@ -277,6 +278,29 @@ def config_cmd(action: str):
     if cfg.context.description:
         console.print("\n  [bold]Project Context:[/bold]")
         console.print(f"    {cfg.context.description}")
+    console.print()
+
+
+def _show_welcome() -> None:
+    """Show the welcome screen with logo and quick status."""
+    from cadre.config import CADRE_DIR
+    from cadre.ui.logo import print_logo
+
+    print_logo(console, version=__version__)
+
+    cadre_dir = Path.cwd() / CADRE_DIR
+    if cadre_dir.exists():
+        console.print("  [green]✓[/green] Project configured")
+        console.print()
+        console.print("  [bold]cadre up[/bold]      Start the AI team")
+        console.print("  [bold]cadre chat[/bold]    Chat with your agents")
+    else:
+        console.print("  [yellow]No project configured yet.[/yellow]")
+        console.print()
+        console.print("  [bold]cadre init[/bold]    Set up your project")
+
+    console.print()
+    console.print("  [dim]Run [bold]cadre --help[/bold] for all commands.[/dim]")
     console.print()
 
 
