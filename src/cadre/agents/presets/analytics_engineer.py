@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from cadre.agents.base import Agent
+from cadre.agents.presets.context import build_extra_context
 from cadre.tools.dbt import DbtCompileTool, DbtLsTool, DbtTestTool
 from cadre.tools.file_ops import FileEditTool, FileReadTool, FileWriteTool, GlobTool, GrepTool
 from cadre.tools.git import GitCommitTool, GitDiffTool, GitStatusTool
@@ -51,7 +52,7 @@ For every model you create or modify:
 ## Project Context
 - Project: {project.name}
 - Warehouse: {project.warehouse}
-
+{build_extra_context(config, "engineer")}
 ## Guidelines
 - Read the architect's design carefully before writing code
 - Follow existing patterns in the codebase — check similar models first

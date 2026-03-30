@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from cadre.agents.base import Agent
+from cadre.agents.presets.context import build_extra_context
 from cadre.tools.file_ops import FileReadTool, GlobTool, GrepTool
 from cadre.tools.git import GitLogTool, GitStatusTool
 from cadre.tools.search import CodeSearchTool
@@ -39,7 +40,7 @@ You coordinate the data team, routing tasks to the right specialist. You NEVER w
 - Project: {project.name}
 - Type: {project.type}
 - Warehouse: {project.warehouse}
-
+{build_extra_context(config, "lead")}
 ## Guidelines
 - Always start with design (architect) before implementation (engineer)
 - Require QA review before marking work as done

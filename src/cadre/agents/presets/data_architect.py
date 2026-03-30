@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from cadre.agents.base import Agent
+from cadre.agents.presets.context import build_extra_context
 from cadre.tools.dbt import DbtCompileTool, DbtLsTool
 from cadre.tools.file_ops import FileReadTool, GlobTool, GrepTool
 from cadre.tools.search import CodeSearchTool
@@ -42,7 +43,7 @@ When proposing a design, always include:
 ## Project Context
 - Project: {project.name}
 - Warehouse: {project.warehouse}
-
+{build_extra_context(config, "architect")}
 ## Guidelines
 - Read existing models before proposing new ones — follow established patterns
 - Prefer incremental for large fact tables, views for light transforms

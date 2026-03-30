@@ -7,7 +7,7 @@ import tempfile
 
 import yaml
 
-from cadre.config import CadreConfig
+from cadre.config import CADRE_DIR, CadreConfig, ProjectContext
 
 
 def test_default_config():
@@ -38,28 +38,84 @@ def test_solo_mode_agents(solo_config):
 
 def test_save_and_load():
     config = CadreConfig()
-    with tempfile.NamedTemporaryFile(suffix=".yml", delete=False, mode="w") as f:
-        config.save(f.name)
-        loaded = CadreConfig.load(f.name)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config.save(tmpdir)
+        loaded = CadreConfig.load(tmpdir)
         assert loaded.project.name == config.project.name
-        os.unlink(f.name)
+        assert loaded.team.mode == config.team.mode
+
+
+def test_save_creates_agent_files():
+    config = CadreConfig()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config.save(tmpdir)
+        agents_dir = os.path.join(tmpdir, CADRE_DIR, "agents")
+        assert os.path.isdir(agents_dir)
+        assert os.path.exists(os.path.join(agents_dir, "lead.yml"))
 
 
 def test_load_nonexistent():
-    config = CadreConfig.load("nonexistent.yml")
-    assert config.project.name == "My Project"  # defaults
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config = CadreConfig.load(tmpdir)
+        assert config.project.name == "My Project"  # defaults
 
 
 def test_env_var_resolution():
     os.environ["TEST_CADRE_KEY"] = "resolved-key"
     try:
-        with tempfile.NamedTemporaryFile(suffix=".yml", delete=False, mode="w") as f:
-            yaml.dump(
-                {"providers": {"test": {"api_key": "${TEST_CADRE_KEY}"}}},
-                f,
-            )
-        config = CadreConfig.load(f.name)
-        assert config.providers["test"].api_key == "resolved-key"
-        os.unlink(f.name)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cadre_dir = os.path.join(tmpdir, CADRE_DIR)
+            os.makedirs(cadre_dir)
+            config_path = os.path.join(cadre_dir, "config.yml")
+            with open(config_path, "w") as f:
+                yaml.dump(
+                    {"providers": {"test": {"api_key": "${TEST_CADRE_KEY}"}}},
+                    f,
+                )
+            config = CadreConfig.load(tmpdir)
+            assert config.providers["test"].api_key == "resolved-key"
     finally:
         del os.environ["TEST_CADRE_KEY"]
+
+
+def test_context_block():
+    config = CadreConfig(
+        context=ProjectContext(
+            description="A test project",
+            tech_stack=["dbt", "snowflake"],
+            conventions=["Use CTEs"],
+        )
+    )
+    block = config.get_context_block()
+    assert "A test project" in block
+    assert "dbt" in block
+    assert "Use CTEs" in block
+
+
+def test_context_save_and_load():
+    config = CadreConfig(
+        context=ProjectContext(
+            description="Test project description",
+            tech_stack=["python", "dbt"],
+        )
+    )
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config.save(tmpdir)
+        loaded = CadreConfig.load(tmpdir)
+        assert loaded.context.description == "Test project description"
+        assert "python" in loaded.context.tech_stack
+
+
+def test_agent_extra_context_save_and_load():
+    from cadre.config import AgentConfig, TeamConfig
+
+    config = CadreConfig(
+        team=TeamConfig(
+            mode="solo",
+            agents={"solo": AgentConfig(extra_context="This is a dbt project")},
+        )
+    )
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config.save(tmpdir)
+        loaded = CadreConfig.load(tmpdir)
+        assert loaded.team.agents["solo"].extra_context == "This is a dbt project"

@@ -26,21 +26,28 @@ def main():
 
 
 @main.command()
-@click.option("--output", "-o", default="cadre.yml", help="Output config file path")
-def init(output: str):
-    """Interactive setup wizard — generates cadre.yml."""
+def init():
+    """Interactive setup — creates .cadre/ config directory."""
     from cadre.init import run_init
 
-    run_init(Path(output))
+    run_init()
 
 
 @main.command()
-@click.option("--config", "-c", default="cadre.yml", help="Config file path")
-def up(config: str):
+@click.option("--model", "-m", default=None, help="Model to use for analysis")
+def explore(model: str | None):
+    """Explore codebase and auto-configure agents with AI."""
+    from cadre.explore import run_explore
+
+    run_explore(model=model)
+
+
+@main.command()
+def up():
     """Start the AI team and open the chat interface."""
     from cadre.ui.app import App
 
-    cfg = _load_config(config)
+    cfg = _load_config()
     if cfg is None:
         return
 
@@ -50,14 +57,13 @@ def up(config: str):
 
 @main.command()
 @click.argument("agent", required=False)
-@click.option("--config", "-c", default="cadre.yml", help="Config file path")
-def chat(agent: str | None, config: str):
+def chat(agent: str | None):
     """Chat with a specific agent (or the team lead)."""
     from cadre.orchestrator.router import MessageRouter
     from cadre.orchestrator.team import Team
     from cadre.ui.chat import ChatUI
 
-    cfg = _load_config(config)
+    cfg = _load_config()
     if cfg is None:
         return
 
@@ -81,13 +87,12 @@ def chat(agent: str | None, config: str):
 
 
 @main.command()
-@click.option("--config", "-c", default="cadre.yml", help="Config file path")
-def status(config: str):
+def status():
     """Show team and agent status."""
     from cadre.orchestrator.team import Team
     from cadre.ui.status import render_status
 
-    cfg = _load_config(config)
+    cfg = _load_config()
     if cfg is None:
         return
 
@@ -131,8 +136,7 @@ def workflow_list():
 @workflow.command(name="run")
 @click.argument("name")
 @click.argument("request", nargs=-1, required=True)
-@click.option("--config", "-c", default="cadre.yml", help="Config file path")
-def workflow_run(name: str, request: tuple[str, ...], config: str):
+def workflow_run(name: str, request: tuple[str, ...]):
     """Run a specific workflow with a request."""
     from cadre.orchestrator.router import MessageRouter
     from cadre.orchestrator.team import Team
@@ -147,7 +151,7 @@ def workflow_run(name: str, request: tuple[str, ...], config: str):
         )
         return
 
-    cfg = _load_config(config)
+    cfg = _load_config()
     if cfg is None:
         return
 
@@ -184,11 +188,12 @@ def workflow_run(name: str, request: tuple[str, ...], config: str):
 
 
 @main.command()
-@click.option("--config", "-c", default="cadre.yml", help="Config file path")
-def doctor(config: str):
+def doctor():
     """Check prerequisites and configuration."""
     import os
     import shutil
+
+    from cadre.config import CADRE_DIR
 
     console.print("[bold]OpenCadre Doctor[/bold]\n")
 
@@ -201,12 +206,24 @@ def doctor(config: str):
     else:
         console.print(f"  [red]✗[/red] Python {py_version.major}.{py_version.minor} (need ≥3.10)")
 
-    # Check config file
-    config_path = Path(config)
-    if config_path.exists():
-        console.print(f"  [green]✓[/green] {config} found")
+    # Check config directory
+    cadre_dir = Path.cwd() / CADRE_DIR
+    if cadre_dir.exists():
+        console.print(f"  [green]✓[/green] {CADRE_DIR}/ found")
+        config_file = cadre_dir / "config.yml"
+        if config_file.exists():
+            console.print(f"  [green]✓[/green] {CADRE_DIR}/config.yml found")
+        else:
+            console.print(f"  [yellow]![/yellow] {CADRE_DIR}/config.yml missing")
+        context_file = cadre_dir / "context.yml"
+        if context_file.exists():
+            console.print(f"  [green]✓[/green] {CADRE_DIR}/context.yml found")
+        else:
+            console.print(
+                f"  [yellow]![/yellow] {CADRE_DIR}/context.yml missing — run `cadre explore`"
+            )
     else:
-        console.print(f"  [yellow]![/yellow] {config} not found — run `cadre init`")
+        console.print(f"  [yellow]![/yellow] {CADRE_DIR}/ not found — run `cadre init`")
 
     # Check LLM providers
     provider_vars = {
@@ -236,11 +253,9 @@ def doctor(config: str):
 
 @main.command(name="config")
 @click.argument("action", type=click.Choice(["show"]))
-@click.option("--config", "-c", default="cadre.yml", help="Config file path")
-def config_cmd(action: str, config: str):
+def config_cmd(action: str):
     """Show current configuration."""
-
-    cfg = _load_config(config)
+    cfg = _load_config()
     if cfg is None:
         return
 
@@ -254,22 +269,32 @@ def config_cmd(action: str, config: str):
     for name, agent_cfg in cfg.team.agents.items():
         status = "[green]enabled[/green]" if agent_cfg.enabled else "[red]disabled[/red]"
         console.print(f"    {name:12s} {agent_cfg.model:40s} {status}")
+        if agent_cfg.extra_context:
+            preview = agent_cfg.extra_context[:60].replace("\n", " ")
+            console.print(f"    {'':12s} [dim]context: {preview}...[/dim]")
     console.print(f"\n  Workflow:  {cfg.workflows.default}")
+
+    if cfg.context.description:
+        console.print("\n  [bold]Project Context:[/bold]")
+        console.print(f"    {cfg.context.description}")
     console.print()
 
 
-def _load_config(config_path: str) -> CadreConfig | None:
-    """Load config, with error handling."""
-    from cadre.config import CadreConfig
+def _load_config() -> CadreConfig | None:
+    """Load config from .cadre/ directory, with error handling."""
+    from cadre.config import CADRE_DIR, CadreConfig
 
-    path = Path(config_path)
-    if not path.exists():
-        console.print(f"[red]Config file '{config_path}' not found.[/red]")
-        console.print("Run [bold]cadre init[/bold] to create one.")
+    base_path = Path.cwd()
+    cadre_dir = base_path / CADRE_DIR
+    legacy_path = base_path / "cadre.yml"
+
+    if not cadre_dir.exists() and not legacy_path.exists():
+        console.print("[red]No configuration found.[/red]")
+        console.print("Run [bold]cadre init[/bold] to set up your project.")
         return None
 
     try:
-        return CadreConfig.load(path)
+        return CadreConfig.load(base_path)
     except Exception as e:
         console.print(f"[red]Error loading config: {e}[/red]")
         return None

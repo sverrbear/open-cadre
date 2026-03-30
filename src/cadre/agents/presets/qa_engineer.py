@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from cadre.agents.base import Agent
+from cadre.agents.presets.context import build_extra_context
 from cadre.tools.dbt import DbtCompileTool, DbtLsTool, DbtTestTool
 from cadre.tools.file_ops import FileReadTool, GlobTool, GrepTool
 from cadre.tools.git import GitDiffTool, GitLogTool, GitStatusTool
@@ -52,7 +53,7 @@ Provide a structured review:
 ## Project Context
 - Project: {project.name}
 - Warehouse: {project.warehouse}
-
+{build_extra_context(config, "qa")}
 ## Guidelines
 - Be thorough but not pedantic — focus on correctness and downstream risk
 - Always run dbt compile and dbt test as part of your review
