@@ -1,0 +1,181 @@
+/* OpenCadre Light Theme */
+
+Screen {
+    background: #eff1f5;
+    color: #4c4f69;
+}
+
+/* Header */
+HeaderBar {
+    dock: top;
+    height: 3;
+    background: #dce0e8;
+    color: #4c4f69;
+    padding: 0 2;
+    content-align: left middle;
+}
+
+HeaderBar #title {
+    color: #1e66f5;
+    text-style: bold;
+}
+
+HeaderBar #subtitle {
+    color: #8c8fa1;
+}
+
+/* Input bar */
+InputBar {
+    dock: bottom;
+    height: 3;
+    padding: 0 1;
+    background: #dce0e8;
+}
+
+InputBar Input {
+    background: #eff1f5;
+    color: #4c4f69;
+    border: tall #bcc0cc;
+    padding: 0 1;
+}
+
+InputBar Input:focus {
+    border: tall #1e66f5;
+}
+
+/* Status sidebar */
+StatusSidebar {
+    width: 32;
+    background: #e6e9ef;
+    border-left: solid #bcc0cc;
+    padding: 1;
+}
+
+StatusSidebar .agent-card {
+    height: 3;
+    padding: 0 1;
+    margin-bottom: 1;
+    background: #eff1f5;
+}
+
+StatusSidebar .agent-name {
+    color: #1e66f5;
+    text-style: bold;
+}
+
+StatusSidebar .agent-model {
+    color: #8c8fa1;
+}
+
+StatusSidebar .status-idle {
+    color: #40a02b;
+}
+
+StatusSidebar .status-thinking {
+    color: #df8e1d;
+}
+
+StatusSidebar .status-tool-calling {
+    color: #1e66f5;
+}
+
+StatusSidebar .status-waiting {
+    color: #8839ef;
+}
+
+StatusSidebar .status-error {
+    color: #d20f39;
+}
+
+/* Agent tabs */
+AgentTabs {
+    height: 1fr;
+}
+
+TabbedContent {
+    height: 1fr;
+}
+
+TabPane {
+    padding: 0;
+}
+
+ContentSwitcher {
+    height: 1fr;
+}
+
+Tabs {
+    background: #dce0e8;
+    color: #8c8fa1;
+}
+
+Tab {
+    background: #dce0e8;
+    color: #8c8fa1;
+    padding: 0 2;
+}
+
+Tab.-active {
+    background: #eff1f5;
+    color: #1e66f5;
+    text-style: bold;
+}
+
+Tab:hover {
+    color: #4c4f69;
+}
+
+Underline {
+    color: #1e66f5;
+}
+
+/* Chat pane */
+ChatPane {
+    height: 1fr;
+    background: #eff1f5;
+}
+
+ChatPane RichLog {
+    height: 1fr;
+    background: #eff1f5;
+    padding: 0 1;
+    scrollbar-size: 1 1;
+}
+
+/* Tool output panel */
+ToolOutputPanel {
+    height: 12;
+    background: #e6e9ef;
+    border-top: solid #bcc0cc;
+}
+
+ToolOutputPanel #tool-header {
+    height: 1;
+    background: #dce0e8;
+    color: #8c8fa1;
+    padding: 0 1;
+}
+
+ToolOutputPanel RichLog {
+    height: 1fr;
+    background: #e6e9ef;
+    padding: 0 1;
+    scrollbar-size: 1 1;
+}
+
+/* Main layout */
+#main-content {
+    height: 1fr;
+}
+
+#chat-area {
+    width: 1fr;
+}
+
+/* Scrollbar styling */
+Scrollbar {
+    background: #eff1f5;
+    scrollbar-color: #bcc0cc;
+    scrollbar-color-hover: #9ca0b0;
+    scrollbar-color-active: #1e66f5;
+}
