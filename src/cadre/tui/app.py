@@ -65,6 +65,11 @@ class CadreTUI(App):
         # Apply initial UI config
         self.call_after_refresh(self._apply_ui_config)
 
+        # Auto-show init screen if no project config exists
+        cadre_dir = Path.cwd() / ".cadre"
+        if not cadre_dir.exists():
+            self.call_after_refresh(self._run_init)
+
     def _apply_ui_config(self) -> None:
         """Apply UI config settings to widgets."""
         ui = self.config.ui
@@ -181,6 +186,7 @@ class CadreTUI(App):
                 team_pane.log.write(
                     "[bold]Commands:[/bold]\n"
                     "  /help       Show this help\n"
+                    "  /init       Initialize project config\n"
                     "  /status     Show team status\n"
                     "  /settings   Open settings\n"
                     "  /quit       Exit\n"
@@ -191,6 +197,8 @@ class CadreTUI(App):
                     "  ctrl+q      Quit\n"
                     "  escape      Focus input\n"
                 )
+        elif cmd == "/init":
+            self._run_init()
         elif cmd == "/status":
             sidebar = self.query_one(StatusSidebar)
             if not sidebar.display:
@@ -200,6 +208,27 @@ class CadreTUI(App):
         else:
             if team_pane:
                 team_pane.append_error(f"Unknown command: {cmd}")
+
+    def _run_init(self) -> None:
+        """Show the init screen for project setup."""
+        from cadre.tui.screens.init_screen import InitScreen
+
+        self.push_screen(InitScreen(), callback=self._on_init_result)
+
+    def _on_init_result(self, result: CadreConfig | None) -> None:
+        """Handle init screen result — reload everything with new config."""
+        if result is None:
+            return
+
+        self.config = result
+        # Re-setup team with new config
+        self.team = Team(config=self.config)
+        self.team.setup()
+        self.router = MessageRouter(team=self.team)
+        self.bridge = EventBridge(app=self, router=self.router)
+        # Refresh the main screen
+        self.pop_screen()
+        self.push_screen(MainScreen(config=self.config, team=self.team))
 
     def action_toggle_sidebar(self) -> None:
         """Toggle the status sidebar visibility."""
