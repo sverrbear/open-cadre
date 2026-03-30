@@ -48,7 +48,7 @@ OpenCadre is a provider-agnostic AI team platform for data engineering. Users co
 
 6. **UI** (`src/cadre/ui/`) — Rich-based terminal app. `ChatUI` for interactive chat, `StatusUI` for team status display.
 
-7. **CLI** (`src/cadre/cli.py`) — Click-based. Entry point: `cadre = cadre.cli:main`. Commands: init, explore, up, chat, status, models, workflow, doctor, config.
+7. **CLI** (`src/cadre/cli.py`) — Click-based. Entry points: `cadre` and `opencadre` (both map to `cadre.cli:main`). Running with no subcommand shows a welcome screen with ASCII logo. Commands: init, explore, up, chat, status, models, workflow, doctor, config. The chat UI supports slash commands (`/help`, `/status`, `/explore`, `/models`, `/doctor`, `/config`, `/workflow`).
 
 **Configuration system:** Lives in `.cadre/` directory — `config.yml` (main), `agents/<name>.yml` (per-agent), `context.yml` (auto-populated project context). Supports `${ENV_VAR}` substitution. Legacy `cadre.yml` also supported.
 
@@ -62,3 +62,7 @@ OpenCadre is a provider-agnostic AI team platform for data engineering. Users co
 - Tests use `asyncio_mode = "auto"` — async tests are detected automatically
 - Shared test fixtures (`sample_config`, `solo_config`) in `tests/conftest.py`
 - Templates use Jinja2 (`src/cadre/templates/`)
+
+## Workflow Reminders
+
+- When making changes that affect CLI commands, slash commands, configuration, or user-facing features, check whether `README.md` needs to be updated
