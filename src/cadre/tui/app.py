@@ -39,16 +39,18 @@ class CadreTUI(App):
     ]
 
     def __init__(self, config: CadreConfig) -> None:
-        super().__init__()
         self.config = config
         self.team = Team(config=config)
         self.router: MessageRouter
         self.bridge: EventBridge
         self.theme_registry = ThemeRegistry(project_path=Path.cwd())
 
-        # Set CSS path based on configured theme
+        # Set CSS path based on configured theme (must be before super().__init__
+        # because Textual's __init__ accesses CSS_PATH)
         theme_name = config.ui.theme
         self.css_path = [self.theme_registry.get_css_path(theme_name)]
+
+        super().__init__()
 
     @property
     def CSS_PATH(self) -> list[Path]:  # noqa: N802
