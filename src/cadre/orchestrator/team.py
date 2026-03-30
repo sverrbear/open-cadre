@@ -27,14 +27,43 @@ class Team:
 
     def setup(self) -> None:
         """Initialize provider and create agents from config."""
+        import os
+        import re
+
+        from cadre.keys import PROVIDER_ENV_VARS
+
+        def _resolve_key(value: str | None) -> str | None:
+            """Resolve ${ENV_VAR} references to actual values."""
+            if not value:
+                return value
+            m = re.fullmatch(r"\$\{(\w+)\}", value)
+            if m:
+                return os.environ.get(m.group(1))
+            return value
+
         # Setup provider
         registry = ProviderRegistry()
+        configured_providers: set[str] = set()
         for name, pcfg in self.config.providers.items():
+            resolved_key = _resolve_key(pcfg.api_key)
+            # Fall back to env var if the reference didn't resolve
+            if not resolved_key:
+                env_var = PROVIDER_ENV_VARS.get(name)
+                if env_var:
+                    resolved_key = os.environ.get(env_var)
             registry.add_provider(
                 name,
-                api_key=pcfg.api_key,
+                api_key=resolved_key,
                 api_base=pcfg.api_base,
             )
+            configured_providers.add(name)
+
+        # Also pick up providers from environment that aren't in config
+        for provider, env_var in PROVIDER_ENV_VARS.items():
+            if provider not in configured_providers:
+                key = os.environ.get(env_var)
+                if key:
+                    registry.add_provider(provider, api_key=key)
 
         self.provider = LiteLLMProvider(
             api_keys=registry.get_api_keys(),

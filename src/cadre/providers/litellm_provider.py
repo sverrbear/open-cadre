@@ -29,12 +29,30 @@ class LiteLLMProvider:
     def __post_init__(self) -> None:
         # Suppress LiteLLM's noisy logging
         litellm.suppress_debug_info = True
-        # Set API keys
+        # Set API keys — also push into os.environ so LiteLLM picks them up
+        # for all providers (not just the ones we explicitly map here)
+        import os
+
+        _LITELLM_ATTR = {
+            "anthropic": "anthropic_key",
+            "openai": "openai_key",
+        }
+        _ENV_VAR = {
+            "anthropic": "ANTHROPIC_API_KEY",
+            "openai": "OPENAI_API_KEY",
+            "google": "GOOGLE_API_KEY",
+            "deepseek": "DEEPSEEK_API_KEY",
+        }
         for provider, key in self.api_keys.items():
-            if provider == "anthropic":
-                litellm.anthropic_key = key
-            elif provider == "openai":
-                litellm.openai_key = key
+            if not key:
+                continue
+            # Set on litellm module if it has a named attribute
+            attr = _LITELLM_ATTR.get(provider)
+            if attr:
+                setattr(litellm, attr, key)
+            # Always set in os.environ so LiteLLM's generic lookup works
+            env_var = _ENV_VAR.get(provider, f"{provider.upper()}_API_KEY")
+            os.environ.setdefault(env_var, key)
 
     async def complete(
         self,

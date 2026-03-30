@@ -12,6 +12,7 @@ from textual.widgets import Button, Checkbox, Input, Label, OptionList, Static, 
 from textual.widgets.option_list import Option
 
 from cadre.config import AUTO_MODEL, AgentConfig, CadreConfig
+from cadre.keys import check_key_for_model
 
 # Short descriptions for preset agent roles
 AGENT_DESCRIPTIONS: dict[str, str] = {
@@ -220,14 +221,15 @@ class AgentsScreen(ModalScreen[CadreConfig | None]):
         self.query_one("#agent-enabled", Checkbox).value = agent_cfg.enabled
         self.query_one("#agent-context", TextArea).text = agent_cfg.extra_context
 
-        # Populate model suggestions — auto first, then role-based recommendations
+        # Populate model suggestions — auto first, then role-based (filtered by available keys)
         suggestions = self.query_one("#model-suggestions", OptionList)
         suggestions.clear_options()
         resolved = self.config.get_model(agent_name)
         suggestions.add_option(Option(f"{'auto':35s} Auto-select ({resolved})", id=AUTO_MODEL))
         recommended = RECOMMENDED_MODELS.get(agent_name, RECOMMENDED_MODELS["solo"])
         for model_id, hint in recommended:
-            suggestions.add_option(Option(f"{model_id:35s} {hint}", id=model_id))
+            if check_key_for_model(model_id):
+                suggestions.add_option(Option(f"{model_id:35s} {hint}", id=model_id))
 
         self.query_one("#list-view").display = False
         self.query_one("#detail-view").display = True
