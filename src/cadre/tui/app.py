@@ -92,13 +92,13 @@ class CadreTUI(App):
             self.call_after_refresh(lambda: self._show_setup_error(setup_error))
             return
 
-        # Auto-show init screen if no project config exists
+        # Check if API keys are missing and warn
+        self.call_after_refresh(self._check_api_keys)
+
+        # Hint if no project config exists
         cadre_dir = Path.cwd() / ".cadre"
         if not cadre_dir.exists():
-            self.call_after_refresh(self._run_init)
-        else:
-            # Check if API keys are missing and warn
-            self.call_after_refresh(self._check_api_keys)
+            self.call_after_refresh(self._show_init_hint)
 
     def _check_api_keys(self) -> None:
         """Check if any API keys are available and warn if not."""
@@ -113,6 +113,15 @@ class CadreTUI(App):
                     "Run [bold]/keys set anthropic[/bold] to add your key, "
                     "or use [bold]/init[/bold] to configure your project.\n"
                 )
+
+    def _show_init_hint(self) -> None:
+        """Show a hint that the project isn't configured yet."""
+        team_pane = self._get_team_pane()
+        if team_pane:
+            team_pane.log.write(
+                "[bold yellow]No project configured.[/bold yellow]\n"
+                "Run [bold]/init[/bold] to set up your project.\n"
+            )
 
     def _show_setup_error(self, error_msg: str) -> None:
         """Display a team setup error in the chat pane."""
