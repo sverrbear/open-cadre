@@ -315,6 +315,17 @@ def _parse_raw_config(raw: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _sanitize_api_key(provider_name: str, key_value: str | None) -> str:
+    """Ensure API keys in config are always env var references, never raw values."""
+    if key_value and key_value.startswith("${"):
+        return key_value
+    # Convert to env var reference
+    from cadre.keys import PROVIDER_ENV_VARS
+
+    env_var = PROVIDER_ENV_VARS.get(provider_name, f"{provider_name.upper()}_API_KEY")
+    return f"${{{env_var}}}"
+
+
 def _config_to_dict(config: CadreConfig) -> dict[str, Any]:
     """Convert config to a YAML-friendly dict (main config only, no agents/context)."""
     return {
@@ -328,7 +339,7 @@ def _config_to_dict(config: CadreConfig) -> dict[str, Any]:
             name: {
                 k: v
                 for k, v in {
-                    "api_key": pcfg.api_key or f"${{{name.upper()}_API_KEY}}",
+                    "api_key": _sanitize_api_key(name, pcfg.api_key),
                     "api_base": pcfg.api_base,
                 }.items()
                 if v is not None

@@ -106,6 +106,16 @@ def test_context_save_and_load():
         assert "python" in loaded.context.tech_stack
 
 
+def test_config_sanitizes_raw_keys():
+    """Config should never write raw API keys — always env var references."""
+    from cadre.config import ProviderConfig, _config_to_dict
+
+    config = CadreConfig(providers={"anthropic": ProviderConfig(api_key="sk-ant-raw-key-value")})
+    result = _config_to_dict(config)
+    # Should be sanitized to env var reference
+    assert result["providers"]["anthropic"]["api_key"] == "${ANTHROPIC_API_KEY}"
+
+
 def test_agent_extra_context_save_and_load():
     from cadre.config import AgentConfig, TeamConfig
 

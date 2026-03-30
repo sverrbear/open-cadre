@@ -34,16 +34,24 @@ class AgentLoop:
 
             # Call LLM
             assistant_msg: dict[str, Any] = {}
-            async for chunk in self.provider.complete(
-                messages=messages,
-                model=self.agent.model,
-                tools=tool_schemas,
-                stream=True,
-            ):
-                if chunk["type"] == "content_delta":
-                    yield AgentEvent(type="content_delta", content=chunk["content"])
-                elif chunk["type"] == "message_complete":
-                    assistant_msg = chunk["message"]
+            try:
+                async for chunk in self.provider.complete(
+                    messages=messages,
+                    model=self.agent.model,
+                    tools=tool_schemas,
+                    stream=True,
+                ):
+                    if chunk["type"] == "content_delta":
+                        yield AgentEvent(type="content_delta", content=chunk["content"])
+                    elif chunk["type"] == "message_complete":
+                        assistant_msg = chunk["message"]
+            except Exception as e:
+                from cadre.errors import classify_llm_error, format_error_for_display
+
+                classified = classify_llm_error(e)
+                self.agent.status = AgentStatus.ERROR
+                yield AgentEvent(type="error", content=format_error_for_display(classified))
+                return
 
             if not assistant_msg:
                 yield AgentEvent(type="error", content="No response from model")
@@ -85,7 +93,11 @@ class AgentLoop:
                         # In a real implementation, we'd wait for user approval here.
                         # For now, auto-approve (the UI layer handles gating).
 
-                    result = await tool.execute(func_args)
+                    try:
+                        result = await tool.execute(func_args)
+                    except Exception as e:
+                        result = f"Tool error: {e}"
+                        yield AgentEvent(type="error", content=f"Tool '{func_name}' failed: {e}")
                     yield AgentEvent(type="tool_result", tool=func_name, result=result)
 
                 # Add tool result to history
