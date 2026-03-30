@@ -65,6 +65,7 @@ def chat(agent: str | None):
     team = Team(config=cfg)
     team.setup()
     router = MessageRouter(team=team)
+    team.inject_router(router)
     chat_ui = ChatUI(router=router, console=console)
 
     if agent:
@@ -153,6 +154,7 @@ def workflow_run(name: str, request: tuple[str, ...]):
     team = Team(config=cfg)
     team.setup()
     router = MessageRouter(team=team)
+    team.inject_router(router)
     engine = WorkflowEngine(team=team, router=router)
     chat_ui = ChatUI(router=router, console=console)
 

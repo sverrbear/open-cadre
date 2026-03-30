@@ -150,6 +150,16 @@ class InitScreen(Screen[CadreConfig | None]):
         color: #6c7086;
     }
 
+    .api-warning {
+        color: #f9e2af;
+        text-style: bold;
+        margin-bottom: 1;
+    }
+
+    .api-key-input {
+        margin-bottom: 1;
+    }
+
     #button-row {
         height: 3;
         align: right middle;
@@ -212,6 +222,12 @@ class InitScreen(Screen[CadreConfig | None]):
 
             # API Keys section
             yield Label("API Keys", classes="section-label")
+            any_key_set = any(os.environ.get(v) for v in PROVIDER_ENV_VARS.values())
+            if not any_key_set:
+                yield Static(
+                    "⚠ No API keys found in environment. Enter a key below or set env vars.",
+                    classes="api-warning",
+                )
             for provider, env_var in PROVIDER_ENV_VARS.items():
                 env_value = os.environ.get(env_var)
                 if env_value:
@@ -222,8 +238,14 @@ class InitScreen(Screen[CadreConfig | None]):
                     )
                 else:
                     yield Static(
-                        f"  [dim]- {provider}: not set (${env_var})[/dim]",
+                        f"  {provider} (${env_var}):",
                         classes="api-missing",
+                    )
+                    yield Input(
+                        placeholder=f"Paste {provider} API key (optional)",
+                        password=True,
+                        id=f"api-key-{provider}",
+                        classes="api-key-input",
                     )
 
             # Team section
@@ -274,11 +296,23 @@ class InitScreen(Screen[CadreConfig | None]):
         strategy_name = strategy_names[highlighted] if highlighted is not None else "balanced"
         strategy = STRATEGIES[strategy_name]
 
-        # Detect providers from env
+        # Detect providers from env or manual input
         providers: dict[str, ProviderConfig] = {}
         for provider, env_var in PROVIDER_ENV_VARS.items():
-            if os.environ.get(env_var):
+            env_value = os.environ.get(env_var)
+            if env_value:
                 providers[provider] = ProviderConfig(api_key=f"${{{env_var}}}")
+            else:
+                # Check if user entered a key manually
+                try:
+                    key_input = self.query_one(f"#api-key-{provider}", Input)
+                    manual_key = key_input.value.strip()
+                    if manual_key:
+                        # Set in current process env so it's available immediately
+                        os.environ[env_var] = manual_key
+                        providers[provider] = ProviderConfig(api_key=f"${{{env_var}}}")
+                except Exception:
+                    pass
         if not providers:
             providers["anthropic"] = ProviderConfig(
                 api_key=f"${{{PROVIDER_ENV_VARS['anthropic']}}}"
