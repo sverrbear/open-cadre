@@ -46,16 +46,22 @@ class CadreTUI(App):
         self.theme_registry = ThemeRegistry(project_path=Path.cwd())
 
         # Set CSS path based on configured theme (must be before super().__init__
+<<<<<<< fix-tui-css-path-init
         # because Textual's __init__ accesses CSS_PATH)
+=======
+        # because Textual reads CSS_PATH during App.__init__)
+>>>>>>> main
         theme_name = config.ui.theme
-        self.css_path = [self.theme_registry.get_css_path(theme_name)]
+        self._css_path = [self.theme_registry.get_css_path(theme_name)]
+
+        super().__init__()
 
         super().__init__()
 
     @property
     def CSS_PATH(self) -> list[Path]:  # noqa: N802
         """Dynamic CSS path based on theme."""
-        return self.css_path
+        return self._css_path
 
     def on_mount(self) -> None:
         """Set up the team and push the main screen."""
@@ -260,7 +266,7 @@ class CadreTUI(App):
             self.config.ui.theme = result
             # Reload CSS with new theme
             new_css_path = self.theme_registry.get_css_path(result)
-            self.css_path = [new_css_path]
+            self._css_path = [new_css_path]
             self.stylesheet.read(new_css_path)
             self.stylesheet.reparse()
             self.refresh_css()
