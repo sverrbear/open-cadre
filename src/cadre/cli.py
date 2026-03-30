@@ -24,14 +24,7 @@ console = Console()
 def main(ctx):
     """OpenCadre — Provider-agnostic AI team platform for data engineering."""
     if ctx.invoked_subcommand is None:
-        # If project is configured, launch the TUI directly
-        from cadre.config import CADRE_DIR
-
-        cadre_dir = Path.cwd() / CADRE_DIR
-        if cadre_dir.exists():
-            _launch_tui()
-        else:
-            _show_welcome()
+        _launch_tui()
 
 
 @main.command()
@@ -283,11 +276,13 @@ def config_cmd(action: str):
 
 def _launch_tui() -> None:
     """Launch the Textual TUI."""
+    from cadre.config import CadreConfig
     from cadre.tui.app import CadreTUI
 
     cfg = _load_config()
     if cfg is None:
-        return
+        # No config yet — launch TUI with defaults, user can /init inside
+        cfg = CadreConfig()
 
     app = CadreTUI(cfg)
     app.run()
