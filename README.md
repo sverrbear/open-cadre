@@ -9,7 +9,10 @@ Spin up a managed team of AI agents — connect any LLM provider (Anthropic, Ope
 ```bash
 pip install open-cadre
 
-# Interactive setup — detects your project, picks models
+# See the welcome screen
+opencadre
+
+# Interactive setup — detects your project, opens provider dashboards to create API keys
 cadre init
 
 # Start your AI team
@@ -50,9 +53,12 @@ cadre up
 
 ## Commands
 
+Both `cadre` and `opencadre` work as entry points.
+
 | Command | Description |
 |---------|-------------|
-| `cadre init` | Interactive setup wizard — generates `cadre.yml` |
+| `cadre` | Welcome screen with logo and quick status |
+| `cadre init` | Interactive setup — detects project, opens provider dashboards for API keys |
 | `cadre up` | Start the team and open chat |
 | `cadre chat [agent]` | Chat with a specific agent or the team |
 | `cadre status` | Show team and agent status |
@@ -62,9 +68,25 @@ cadre up
 | `cadre doctor` | Check prerequisites and configuration |
 | `cadre config show` | Show current configuration |
 
+### Slash Commands (in chat)
+
+Once inside `cadre chat` or `cadre up`, use slash commands:
+
+| Command | Description |
+|---------|-------------|
+| `/help` | Show all available commands |
+| `/status` | Show team and agent status |
+| `/explore` | Explore codebase and update agent context |
+| `/models` | Show model benchmarks and recommendations |
+| `/doctor` | Check prerequisites and configuration |
+| `/config` | Show current configuration |
+| `/workflow list` | List available workflows |
+| `/workflow run <name> <request>` | Run a workflow |
+| `/quit` | Exit the chat |
+
 ## Configuration
 
-All configuration lives in `cadre.yml`. See [`cadre.example.yml`](cadre.example.yml) for a full example.
+All configuration lives in `.cadre/config.yml` (created by `cadre init`). See [`cadre.example.yml`](cadre.example.yml) for a full example.
 
 ```yaml
 project:
