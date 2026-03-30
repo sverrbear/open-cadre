@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 
 from rich.console import Console
-from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 
 from cadre import __version__
@@ -29,7 +28,13 @@ PROVIDER_ENV_VARS = {
     "anthropic": "ANTHROPIC_API_KEY",
     "openai": "OPENAI_API_KEY",
     "google": "GOOGLE_API_KEY",
-    "mistral": "MISTRAL_API_KEY",
+}
+
+# Provider → API key dashboard URLs
+PROVIDER_DASHBOARDS = {
+    "anthropic": "https://console.anthropic.com/settings/keys",
+    "openai": "https://platform.openai.com/api-keys",
+    "google": "https://aistudio.google.com/apikey",
 }
 
 # Model strategies
@@ -99,7 +104,10 @@ def run_init(base_path: Path | None = None) -> CadreConfig:
         console.print("  Aborted.")
         raise SystemExit(0)
 
-    console.print(Panel(f"[bold]OpenCadre v{__version__}[/bold]  setup", style="blue"))
+    from cadre.ui.logo import print_logo
+
+    print_logo(console, version=__version__)
+    console.print("[bold]Setup[/bold]")
     console.print()
 
     # --- Auto-detect ---
@@ -138,8 +146,7 @@ def run_init(base_path: Path | None = None) -> CadreConfig:
 
     # --- API Keys ---
     console.print("\n[bold]API Keys[/bold]")
-    console.print("  [dim]Keys are stored locally in .cadre/config.yml (gitignored).[/dim]")
-    console.print("  [dim]Press Enter to use env var, or paste a key directly.[/dim]\n")
+    console.print("  [dim]Keys are stored locally in .cadre/config.yml (gitignored).[/dim]\n")
 
     providers: dict[str, ProviderConfig] = {}
     for provider, env_var in PROVIDER_ENV_VARS.items():
@@ -149,11 +156,20 @@ def run_init(base_path: Path | None = None) -> CadreConfig:
             console.print(f"  [green]✓[/green] {provider}: {masked} (from ${env_var})")
             providers[provider] = ProviderConfig(api_key=f"${{{env_var}}}")
         else:
-            key = Prompt.ask(f"  {provider} API key", default="", show_default=False)
-            if key.strip():
-                providers[provider] = ProviderConfig(api_key=key.strip())
-            else:
-                console.print(f"  [dim]  Skipped {provider}[/dim]")
+            if Confirm.ask(f"  Set up [bold]{provider}[/bold]?", default=False):
+                dashboard_url = PROVIDER_DASHBOARDS.get(provider)
+                if dashboard_url:
+                    import webbrowser
+
+                    console.print(f"  [dim]Opening {provider} dashboard...[/dim]")
+                    webbrowser.open(dashboard_url)
+                    console.print("  [dim]Create an API key and paste it below.[/dim]")
+                key = Prompt.ask(f"  {provider} API key", default="", show_default=False)
+                if key.strip():
+                    providers[provider] = ProviderConfig(api_key=key.strip())
+                    console.print(f"  [green]✓[/green] {provider} configured")
+                else:
+                    console.print(f"  [dim]  Skipped {provider}[/dim]")
 
     if not providers:
         console.print("\n  [yellow]No API keys configured.[/yellow]")

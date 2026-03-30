@@ -42,6 +42,7 @@ dev = [
 
 [project.scripts]
 cadre = "cadre.cli:main"
+opencadre = "cadre.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cadre"]
