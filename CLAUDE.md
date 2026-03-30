@@ -66,3 +66,4 @@ OpenCadre is a provider-agnostic AI team platform for data engineering. Users co
 ## Workflow Reminders
 
 - When making changes that affect CLI commands, slash commands, configuration, or user-facing features, check whether `README.md` needs to be updated
+- Always create new branches from `main` (checkout main first, then create the branch)
