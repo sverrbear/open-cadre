@@ -10,10 +10,10 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
-from textual.widgets import Button, Input, Label, OptionList, Select, Static
-from textual.widgets.option_list import Option
+from textual.widgets import Button, Checkbox, Input, Label, Select, Static
 
 from cadre.config import (
+    AUTO_MODEL,
     CADRE_DIR,
     AgentConfig,
     CadreConfig,
@@ -24,60 +24,7 @@ from cadre.config import (
     WorkflowsConfig,
 )
 from cadre.detect import detect_project
-from cadre.keys import PROVIDER_ENV_VARS, generate_env_file, key_set
-
-STRATEGIES = {
-    "balanced": {
-        "description": "Opus lead, Sonnet team (~$0.28/task)",
-        "agents": {
-            "lead": "anthropic/claude-opus-4-6",
-            "architect": "anthropic/claude-sonnet-4-6",
-            "engineer": "anthropic/claude-sonnet-4-6",
-            "qa": "anthropic/claude-sonnet-4-6",
-            "solo": "anthropic/claude-sonnet-4-6",
-        },
-    },
-    "quality": {
-        "description": "Opus design, Sonnet code (~$0.45/task)",
-        "agents": {
-            "lead": "anthropic/claude-opus-4-6",
-            "architect": "anthropic/claude-opus-4-6",
-            "engineer": "anthropic/claude-sonnet-4-6",
-            "qa": "anthropic/claude-sonnet-4-6",
-            "solo": "anthropic/claude-opus-4-6",
-        },
-    },
-    "cost": {
-        "description": "Sonnet lead, Haiku team (~$0.09/task)",
-        "agents": {
-            "lead": "anthropic/claude-sonnet-4-6",
-            "architect": "anthropic/claude-haiku-4-5-20251001",
-            "engineer": "anthropic/claude-haiku-4-5-20251001",
-            "qa": "anthropic/claude-haiku-4-5-20251001",
-            "solo": "anthropic/claude-sonnet-4-6",
-        },
-    },
-    "mixed": {
-        "description": "Best model per provider per role",
-        "agents": {
-            "lead": "anthropic/claude-opus-4-6",
-            "architect": "openai/o3",
-            "engineer": "anthropic/claude-sonnet-4-6",
-            "qa": "openai/gpt-4o",
-            "solo": "anthropic/claude-sonnet-4-6",
-        },
-    },
-    "local": {
-        "description": "Ollama only, free (~$0.00/task)",
-        "agents": {
-            "lead": "ollama/llama3.3-70b",
-            "architect": "ollama/llama3.3-70b",
-            "engineer": "ollama/llama3.3-70b",
-            "qa": "ollama/llama3.3-70b",
-            "solo": "ollama/llama3.3-70b",
-        },
-    },
-}
+from cadre.keys import ENV_FILE, PROVIDER_ENV_VARS, generate_env_file, key_set
 
 
 class InitScreen(Screen[CadreConfig | None]):
@@ -93,9 +40,9 @@ class InitScreen(Screen[CadreConfig | None]):
     }
 
     #init-container {
-        width: 60;
+        width: 64;
         height: auto;
-        max-height: 80%;
+        max-height: 85%;
         background: #1e1e2e;
         border: thick #313244;
         padding: 1 2;
@@ -108,8 +55,33 @@ class InitScreen(Screen[CadreConfig | None]):
         margin-bottom: 1;
     }
 
+    .section-label {
+        text-style: bold;
+        color: #cdd6f4;
+        margin-top: 1;
+    }
+
     .field-label {
         color: #6c7086;
+    }
+
+    .provider-row {
+        height: 3;
+        margin-bottom: 0;
+    }
+
+    .provider-row Checkbox {
+        width: auto;
+        min-width: 16;
+    }
+
+    .api-status {
+        color: #a6e3a1;
+        margin-left: 2;
+    }
+
+    .api-key-input {
+        margin-bottom: 0;
     }
 
     Input {
@@ -117,19 +89,6 @@ class InitScreen(Screen[CadreConfig | None]):
     }
 
     Select {
-        margin-bottom: 1;
-    }
-
-    OptionList {
-        height: 6;
-        margin-bottom: 1;
-    }
-
-    .api-status {
-        color: #a6e3a1;
-    }
-
-    .api-key-input {
         margin-bottom: 1;
     }
 
@@ -158,42 +117,68 @@ class InitScreen(Screen[CadreConfig | None]):
             default_name = self.detection.project_name or self.base_path.name
             yield Input(value=default_name, id="project-name")
 
-            # API key — show one field if no key is set
-            has_any_key = any(os.environ.get(v) for v in PROVIDER_ENV_VARS.values())
-            if has_any_key:
-                yield Static("[green]✓[/green] API key detected", classes="api-status")
-            else:
-                yield Label("Anthropic API key", classes="field-label")
-                yield Input(
-                    placeholder="sk-ant-...",
-                    password=True,
-                    id="api-key-anthropic",
-                    classes="api-key-input",
-                )
+            # Provider selection
+            yield Label("Providers", classes="section-label")
+
+            for provider, env_var in PROVIDER_ENV_VARS.items():
+                env_value = os.environ.get(env_var)
+                with Horizontal(classes="provider-row"):
+                    yield Checkbox(
+                        provider.capitalize(),
+                        value=bool(env_value),
+                        id=f"provider-check-{provider}",
+                    )
+                    if env_value:
+                        masked = env_value[:6] + "..." + env_value[-4:]
+                        yield Static(
+                            f"[green]\u2713[/green] {masked}",
+                            classes="api-status",
+                        )
+
+                # Key input — only show if no key in environment
+                if not env_value:
+                    yield Input(
+                        placeholder=f"{env_var}",
+                        password=True,
+                        id=f"api-key-{provider}",
+                        classes="api-key-input",
+                    )
 
             # Team mode
-            yield Label("Team mode", classes="field-label")
+            yield Label("Team mode", classes="section-label")
             yield Select(
                 [("Full team (4 agents)", "full"), ("Solo (1 agent)", "solo")],
                 value="full",
                 id="team-mode",
             )
 
-            # Strategy
-            yield Label("Model strategy", classes="field-label")
-            strategy_options = [
-                Option(f"{name:10s} — {s['description']}", id=name)
-                for name, s in STRATEGIES.items()
-            ]
-            yield OptionList(*strategy_options, id="strategy-list")
-
             with Horizontal(id="button-row"):
                 yield Button("Cancel", variant="default", id="cancel-btn")
                 yield Button("Create Project", variant="primary", id="create-btn")
 
     def on_mount(self) -> None:
-        """Set default strategy selection."""
-        self.query_one("#strategy-list", OptionList).highlighted = 0
+        """Hide API key inputs for unchecked providers."""
+        for provider in PROVIDER_ENV_VARS:
+            self._toggle_key_visibility(provider)
+
+    def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
+        """Show/hide API key input when a provider checkbox is toggled."""
+        checkbox_id = event.checkbox.id or ""
+        if checkbox_id.startswith("provider-check-"):
+            provider = checkbox_id.replace("provider-check-", "")
+            self._toggle_key_visibility(provider)
+
+    def _toggle_key_visibility(self, provider: str) -> None:
+        """Show or hide the API key input for a provider."""
+        try:
+            key_input = self.query_one(f"#api-key-{provider}", Input)
+        except Exception:
+            return  # No input (key already in env)
+        try:
+            checkbox = self.query_one(f"#provider-check-{provider}", Checkbox)
+            key_input.display = checkbox.value
+        except Exception:
+            pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "cancel-btn":
@@ -211,45 +196,45 @@ class InitScreen(Screen[CadreConfig | None]):
         warehouse = self.detection.warehouse or "snowflake"
         mode = self.query_one("#team-mode", Select).value or "full"
 
-        # Get selected strategy
-        strategy_list = self.query_one("#strategy-list", OptionList)
-        highlighted = strategy_list.highlighted
-        strategy_names = list(STRATEGIES.keys())
-        strategy_name = strategy_names[highlighted] if highlighted is not None else "balanced"
-        strategy = STRATEGIES[strategy_name]
-
-        # Detect providers from env or manual input
+        # Collect providers and API keys
         providers: dict[str, ProviderConfig] = {}
         entered_keys: dict[str, str] = {}
+
         for provider, env_var in PROVIDER_ENV_VARS.items():
+            try:
+                checkbox = self.query_one(f"#provider-check-{provider}", Checkbox)
+            except Exception:
+                continue
+
+            if not checkbox.value:
+                continue
+
+            # Check if key is already in environment
             env_value = os.environ.get(env_var)
             if env_value:
                 providers[provider] = ProviderConfig(api_key=f"${{{env_var}}}")
+                continue
 
-        # Check if user entered an anthropic key manually
-        try:
-            key_input = self.query_one("#api-key-anthropic", Input)
-            manual_key = key_input.value.strip()
-            if manual_key:
-                entered_keys["anthropic"] = manual_key
-                key_set(self.base_path, provider="anthropic", value=manual_key)
-                providers["anthropic"] = ProviderConfig(
-                    api_key=f"${{{PROVIDER_ENV_VARS['anthropic']}}}"
-                )
-        except Exception:
-            pass
+            # Check if user entered a key manually
+            try:
+                key_input = self.query_one(f"#api-key-{provider}", Input)
+                manual_key = key_input.value.strip()
+                if manual_key:
+                    entered_keys[provider] = manual_key
+                    key_set(self.base_path, provider=provider, value=manual_key)
+                    providers[provider] = ProviderConfig(api_key=f"${{{env_var}}}")
+            except Exception:
+                pass
 
+        # Fallback: if nothing selected, add anthropic placeholder
         if not providers:
             providers["anthropic"] = ProviderConfig(
                 api_key=f"${{{PROVIDER_ENV_VARS['anthropic']}}}"
             )
 
-        # Build agent configs
+        # Create agents in auto mode — models resolved at runtime from configured providers
         agent_names = ["solo"] if mode == "solo" else ["lead", "architect", "engineer", "qa"]
-        agents = {
-            name: AgentConfig(model=strategy["agents"].get(name, "anthropic/claude-sonnet-4-6"))
-            for name in agent_names
-        }
+        agents = {name: AgentConfig(model=AUTO_MODEL) for name in agent_names}
 
         config = CadreConfig(
             project=ProjectConfig(
@@ -273,8 +258,6 @@ class InitScreen(Screen[CadreConfig | None]):
 
 def _ensure_gitignored(base_path: Path) -> None:
     """Make sure .cadre/ and cadre.env are listed in .gitignore."""
-    from cadre.keys import ENV_FILE
-
     gitignore = base_path / ".gitignore"
     markers = [f"{CADRE_DIR}/", ENV_FILE]
 

@@ -14,6 +14,7 @@ PROVIDER_ENV_VARS = {
     "anthropic": "ANTHROPIC_API_KEY",
     "openai": "OPENAI_API_KEY",
     "google": "GOOGLE_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
 }
 
 # Provider → API key dashboard URLs
@@ -21,6 +22,7 @@ PROVIDER_DASHBOARDS = {
     "anthropic": "https://console.anthropic.com/settings/keys",
     "openai": "https://platform.openai.com/api-keys",
     "google": "https://aistudio.google.com/apikey",
+    "deepseek": "https://platform.deepseek.com/api_keys",
 }
 
 
