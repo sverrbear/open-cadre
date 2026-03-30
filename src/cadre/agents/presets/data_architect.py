@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from cadre.config import CadreConfig
 
 
-def create_architect(config: "CadreConfig") -> Agent:
+def create_architect(config: CadreConfig) -> Agent:
     """Create the Data Architect agent."""
     project = config.project
     model = config.get_model("architect")
@@ -55,7 +55,14 @@ When proposing a design, always include:
         role="Data Architect — designs models, classifies risk, never writes code",
         system_prompt=system_prompt,
         model=model,
-        tools=[FileReadTool(), GlobTool(), GrepTool(), DbtLsTool(), DbtCompileTool(), CodeSearchTool()],
+        tools=[
+            FileReadTool(),
+            GlobTool(),
+            GrepTool(),
+            DbtLsTool(),
+            DbtCompileTool(),
+            CodeSearchTool(),
+        ],
         workflow_description="Verifies sources → proposes design → classifies risk",
         can_write_code=False,
         can_approve_pr=False,

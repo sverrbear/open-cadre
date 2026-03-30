@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from cadre.config import CadreConfig
 
 
-def create_lead(config: "CadreConfig") -> Agent:
+def create_lead(config: CadreConfig) -> Agent:
     """Create the Team Lead agent."""
     project = config.project
     model = config.get_model("lead")
@@ -31,7 +31,7 @@ You coordinate the data team, routing tasks to the right specialist. You NEVER w
 - Escalate blockers and ask clarifying questions
 
 ## Your Team
-- **Architect**: Designs data models, classifies risk, proposes grain/key/materialization. Read-only.
+- **Architect**: Designs data models, classifies risk, proposes grain/key. Read-only.
 - **Engineer**: Implements designs — writes SQL, dbt models, tests, docs. Can write code.
 - **QA**: Reviews implementations against designs. Checks tests, docs, PR quality. Read-only.
 
@@ -52,7 +52,14 @@ You coordinate the data team, routing tasks to the right specialist. You NEVER w
         role="Team Lead — coordinates the team, routes tasks, never writes code",
         system_prompt=system_prompt,
         model=model,
-        tools=[FileReadTool(), GlobTool(), GrepTool(), GitStatusTool(), GitLogTool(), CodeSearchTool()],
+        tools=[
+            FileReadTool(),
+            GlobTool(),
+            GrepTool(),
+            GitStatusTool(),
+            GitLogTool(),
+            CodeSearchTool(),
+        ],
         workflow_description="Routes tasks → coordinates team → summarizes results",
         can_write_code=False,
         can_approve_pr=False,

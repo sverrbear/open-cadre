@@ -21,7 +21,8 @@ class AgentStatus(str, Enum):
 class AgentEvent:
     """Event emitted during agent execution."""
 
-    type: str  # "content_delta", "response", "tool_call", "tool_result", "confirmation_needed", "error", "status"
+    # content_delta, response, tool_call, tool_result, confirmation_needed, error, status
+    type: str
     content: str = ""
     tool: str = ""
     args: dict[str, Any] = field(default_factory=dict)

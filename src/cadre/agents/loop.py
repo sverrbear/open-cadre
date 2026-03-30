@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 from cadre.agents.base import Agent, AgentEvent, AgentStatus
 from cadre.providers.base import LLMProvider
@@ -23,7 +24,7 @@ class AgentLoop:
         self.agent.status = AgentStatus.THINKING
         yield AgentEvent(type="status", content="thinking")
 
-        for iteration in range(self.max_iterations):
+        for _iteration in range(self.max_iterations):
             # Build messages
             messages = [{"role": "system", "content": self.agent.system_prompt}]
             messages.extend(self.agent.history)

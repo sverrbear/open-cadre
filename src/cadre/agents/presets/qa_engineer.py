@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from cadre.config import CadreConfig
 
 
-def create_qa(config: "CadreConfig") -> Agent:
+def create_qa(config: CadreConfig) -> Agent:
     """Create the QA Engineer agent."""
     project = config.project
     model = config.get_model("qa")
@@ -22,7 +22,8 @@ def create_qa(config: "CadreConfig") -> Agent:
     system_prompt = f"""You are the QA Engineer for {project.name}.
 
 ## Your Role
-You review implementations against the architect's design. You check quality, tests, docs, and correctness.
+You review implementations against the architect's design.
+You check quality, tests, docs, and correctness.
 
 ## Your Review Checklist
 1. **Design conformance** — Does the implementation match the architect's spec?
@@ -65,11 +66,20 @@ Provide a structured review:
         system_prompt=system_prompt,
         model=model,
         tools=[
-            FileReadTool(), GlobTool(), GrepTool(), CodeSearchTool(),
-            GitStatusTool(), GitDiffTool(), GitLogTool(),
-            DbtCompileTool(), DbtLsTool(), DbtTestTool(),
+            FileReadTool(),
+            GlobTool(),
+            GrepTool(),
+            CodeSearchTool(),
+            GitStatusTool(),
+            GitDiffTool(),
+            GitLogTool(),
+            DbtCompileTool(),
+            DbtLsTool(),
+            DbtTestTool(),
         ],
-        workflow_description="Reviews implementation → checks tests + docs → approves or requests changes",
+        workflow_description=(
+            "Reviews implementation → checks tests + docs → approves or requests changes"
+        ),
         can_write_code=False,
         can_approve_pr=True,
     )

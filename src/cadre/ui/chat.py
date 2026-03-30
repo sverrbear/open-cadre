@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import TYPE_CHECKING
 
 from rich.console import Console
-from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.prompt import Prompt
 
@@ -19,7 +17,7 @@ if TYPE_CHECKING:
 class ChatUI:
     """Terminal chat interface for interacting with agents."""
 
-    def __init__(self, router: "MessageRouter", console: Console | None = None) -> None:
+    def __init__(self, router: MessageRouter, console: Console | None = None) -> None:
         self.router = router
         self.console = console or Console()
 
@@ -66,6 +64,7 @@ class ChatUI:
 
             if user_input == "/status":
                 from cadre.ui.status import render_status
+
                 render_status(self.router.team, self.console)
                 continue
 

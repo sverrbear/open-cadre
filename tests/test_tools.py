@@ -7,13 +7,12 @@ from pathlib import Path
 
 import pytest
 
-from cadre.tools.base import Tool, ToolRegistry
+from cadre.tools.base import ToolRegistry
 from cadre.tools.file_ops import (
     FileEditTool,
     FileReadTool,
     FileWriteTool,
     GlobTool,
-    GrepTool,
     create_file_tools,
 )
 from cadre.tools.git import create_git_tools
@@ -70,11 +69,13 @@ async def test_file_write_and_edit():
         assert "Written" in result
 
         # Edit
-        result = await edit_tool.execute({
-            "path": path,
-            "old_string": "hello",
-            "new_string": "goodbye",
-        })
+        result = await edit_tool.execute(
+            {
+                "path": path,
+                "old_string": "hello",
+                "new_string": "goodbye",
+            }
+        )
         assert "Edited" in result
         assert Path(path).read_text() == "goodbye world"
 
@@ -92,7 +93,7 @@ async def test_glob_tool():
 
 def test_shell_tool_deny():
     tool = ShellTool(deny_patterns=["rm -rf*"])
-    allowed, reason = tool._is_allowed("rm -rf /")
+    allowed, _reason = tool._is_allowed("rm -rf /")
     assert not allowed
 
 

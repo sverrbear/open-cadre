@@ -19,11 +19,13 @@ class Session:
     total_cost: float = 0.0
 
     def add_message(self, role: str, content: str) -> None:
-        self.messages.append({
-            "role": role,
-            "content": content,
-            "timestamp": datetime.now().isoformat(),
-        })
+        self.messages.append(
+            {
+                "role": role,
+                "content": content,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
 
     def get_history(self) -> list[dict[str, str]]:
         """Get messages in LLM-compatible format (role + content only)."""

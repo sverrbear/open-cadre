@@ -5,11 +5,15 @@ from __future__ import annotations
 import asyncio
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 from rich.console import Console
 
 from cadre import __version__
+
+if TYPE_CHECKING:
+    from cadre.config import CadreConfig
 
 console = Console()
 
@@ -34,7 +38,6 @@ def init(output: str):
 @click.option("--config", "-c", default="cadre.yml", help="Config file path")
 def up(config: str):
     """Start the AI team and open the chat interface."""
-    from cadre.config import CadreConfig
     from cadre.ui.app import App
 
     cfg = _load_config(config)
@@ -50,7 +53,6 @@ def up(config: str):
 @click.option("--config", "-c", default="cadre.yml", help="Config file path")
 def chat(agent: str | None, config: str):
     """Chat with a specific agent (or the team lead)."""
-    from cadre.config import CadreConfig
     from cadre.orchestrator.router import MessageRouter
     from cadre.orchestrator.team import Team
     from cadre.ui.chat import ChatUI
@@ -66,7 +68,9 @@ def chat(agent: str | None, config: str):
 
     if agent:
         if agent not in team.agents:
-            console.print(f"[red]Agent '{agent}' not found.[/red] Available: {', '.join(team.agents.keys())}")
+            console.print(
+                f"[red]Agent '{agent}' not found.[/red] Available: {', '.join(team.agents.keys())}"
+            )
             return
         console.print(f"[blue]Chatting with {agent}. Type /quit to exit.[/blue]\n")
     else:
@@ -80,7 +84,6 @@ def chat(agent: str | None, config: str):
 @click.option("--config", "-c", default="cadre.yml", help="Config file path")
 def status(config: str):
     """Show team and agent status."""
-    from cadre.config import CadreConfig
     from cadre.orchestrator.team import Team
     from cadre.ui.status import render_status
 
@@ -131,7 +134,6 @@ def workflow_list():
 @click.option("--config", "-c", default="cadre.yml", help="Config file path")
 def workflow_run(name: str, request: tuple[str, ...], config: str):
     """Run a specific workflow with a request."""
-    from cadre.config import CadreConfig
     from cadre.orchestrator.router import MessageRouter
     from cadre.orchestrator.team import Team
     from cadre.ui.chat import ChatUI
@@ -139,7 +141,10 @@ def workflow_run(name: str, request: tuple[str, ...], config: str):
     from cadre.workflows.presets import PRESET_WORKFLOWS
 
     if name not in PRESET_WORKFLOWS:
-        console.print(f"[red]Workflow '{name}' not found.[/red] Available: {', '.join(PRESET_WORKFLOWS.keys())}")
+        console.print(
+            f"[red]Workflow '{name}' not found.[/red] "
+            f"Available: {', '.join(PRESET_WORKFLOWS.keys())}"
+        )
         return
 
     cfg = _load_config(config)
@@ -167,6 +172,7 @@ def workflow_run(name: str, request: tuple[str, ...], config: str):
                     console.print(f"\n[bold]→ {event.agent}[/bold]: {event.instruction}\n")
                 elif event.type == "approval_needed":
                     from rich.prompt import Confirm
+
                     if not Confirm.ask("[magenta]Approve and continue?[/magenta]"):
                         console.print("[yellow]Workflow cancelled.[/yellow]")
                         return
@@ -189,7 +195,9 @@ def doctor(config: str):
     # Check Python version
     py_version = sys.version_info
     if py_version >= (3, 10):
-        console.print(f"  [green]✓[/green] Python {py_version.major}.{py_version.minor}.{py_version.micro}")
+        console.print(
+            f"  [green]✓[/green] Python {py_version.major}.{py_version.minor}.{py_version.micro}"
+        )
     else:
         console.print(f"  [red]✗[/red] Python {py_version.major}.{py_version.minor} (need ≥3.10)")
 
@@ -231,7 +239,6 @@ def doctor(config: str):
 @click.option("--config", "-c", default="cadre.yml", help="Config file path")
 def config_cmd(action: str, config: str):
     """Show current configuration."""
-    from cadre.config import CadreConfig
 
     cfg = _load_config(config)
     if cfg is None:
@@ -251,7 +258,7 @@ def config_cmd(action: str, config: str):
     console.print()
 
 
-def _load_config(config_path: str) -> "CadreConfig | None":
+def _load_config(config_path: str) -> CadreConfig | None:
     """Load config, with error handling."""
     from cadre.config import CadreConfig
 

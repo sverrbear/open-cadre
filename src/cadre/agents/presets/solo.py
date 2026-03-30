@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from cadre.config import CadreConfig
 
 
-def create_solo(config: "CadreConfig") -> Agent:
+def create_solo(config: CadreConfig) -> Agent:
     """Create the Solo agent — a single all-in-one agent."""
     project = config.project
     model = config.get_model("solo")
@@ -56,11 +56,20 @@ For any task, follow this process:
         system_prompt=system_prompt,
         model=model,
         tools=[
-            FileReadTool(), FileWriteTool(), FileEditTool(),
-            GlobTool(), GrepTool(), CodeSearchTool(),
+            FileReadTool(),
+            FileWriteTool(),
+            FileEditTool(),
+            GlobTool(),
+            GrepTool(),
+            CodeSearchTool(),
             shell_tool,
-            GitStatusTool(), GitDiffTool(), GitCommitTool(), GitLogTool(),
-            DbtCompileTool(), DbtLsTool(), DbtTestTool(),
+            GitStatusTool(),
+            GitDiffTool(),
+            GitCommitTool(),
+            GitLogTool(),
+            DbtCompileTool(),
+            DbtLsTool(),
+            DbtTestTool(),
         ],
         workflow_description="Understands → designs → implements → validates → delivers",
         can_write_code=True,

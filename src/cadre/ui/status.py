@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from cadre.orchestrator.team import Team
 
 
-def render_status(team: "Team", console: Console | None = None) -> None:
+def render_status(team: Team, console: Console | None = None) -> None:
     """Render team status as a Rich table."""
     if console is None:
         console = Console()

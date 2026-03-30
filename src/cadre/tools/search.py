@@ -14,7 +14,10 @@ class CodeSearchTool(Tool):
     def __init__(self) -> None:
         super().__init__(
             name="search",
-            description="Search the codebase for a pattern. Uses ripgrep if available, falls back to grep. Returns matching lines with file paths and line numbers.",
+            description=(
+                "Search the codebase for a pattern. Uses ripgrep if available,"
+                " falls back to grep. Returns matching lines with file paths and line numbers."
+            ),
             parameters={
                 "type": "object",
                 "properties": {
@@ -54,7 +57,7 @@ class CodeSearchTool(Tool):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+            stdout, _stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
             output = stdout.decode("utf-8", errors="replace").strip()
 
             if not output:
@@ -75,7 +78,8 @@ class CodeSearchTool(Tool):
         """Build ripgrep command, returns None if rg is not available."""
         try:
             proc = await asyncio.create_subprocess_exec(
-                "rg", "--version",
+                "rg",
+                "--version",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
