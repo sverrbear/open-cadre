@@ -37,13 +37,15 @@ def test_doctor():
 
 def test_status_no_config():
     runner = CliRunner()
-    result = runner.invoke(main, ["status", "--config", "nonexistent.yml"])
+    with runner.isolated_filesystem():
+        result = runner.invoke(main, ["status"])
     assert result.exit_code == 0
-    assert "not found" in result.output
+    assert "No configuration found" in result.output
 
 
 def test_config_show_no_config():
     runner = CliRunner()
-    result = runner.invoke(main, ["config", "show", "--config", "nonexistent.yml"])
+    with runner.isolated_filesystem():
+        result = runner.invoke(main, ["config", "show"])
     assert result.exit_code == 0
-    assert "not found" in result.output
+    assert "No configuration found" in result.output
