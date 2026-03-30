@@ -1,0 +1,70 @@
+# OpenCadre Configuration
+# Copy this to cadre.yml and customize for your project.
+# Run `cadre init` for an interactive setup wizard.
+
+project:
+  name: "My Analytics Project"
+  type: dbt                          # dbt | generic
+  warehouse: snowflake               # snowflake | bigquery | redshift | postgres
+  ci_platform: github_actions        # github_actions | gitlab_ci | none
+
+# API keys — set via environment variables (recommended) or inline
+providers:
+  anthropic:
+    api_key: ${ANTHROPIC_API_KEY}
+  openai:
+    api_key: ${OPENAI_API_KEY}
+  # google:
+  #   api_key: ${GOOGLE_API_KEY}
+  # ollama:
+  #   api_base: http://localhost:11434
+
+# Team configuration
+team:
+  mode: full                         # full (4 agents) | solo (1 agent)
+  agents:
+    lead:
+      model: anthropic/claude-opus-4-6
+      enabled: true
+    architect:
+      model: anthropic/claude-sonnet-4-6
+      enabled: true
+    engineer:
+      model: anthropic/claude-sonnet-4-6
+      enabled: true
+    qa:
+      model: anthropic/claude-sonnet-4-6
+      enabled: true
+    # solo:                           # Used when mode: solo
+    #   model: anthropic/claude-sonnet-4-6
+
+# Tool permissions
+tools:
+  shell:
+    allow:
+      - "git *"
+      - "dbt compile*"
+      - "dbt ls*"
+      - "dbt test*"
+      - "sqlfluff*"
+      - "ruff*"
+    deny:
+      - "rm -rf*"
+      - "dbt run --full-refresh*"
+      - "DROP*"
+      - "DELETE FROM*"
+      - "TRUNCATE*"
+
+# Workflows
+workflows:
+  default: design-implement-review   # design-implement-review | code-review | model-creation
+
+  # Custom workflow example:
+  # quick-review:
+  #   description: "Quick review without architect"
+  #   steps:
+  #     - agent: engineer
+  #       instruction: "Implement this change"
+  #     - agent: qa
+  #       instruction: "Review the implementation"
+  #       wait_for_approval: true

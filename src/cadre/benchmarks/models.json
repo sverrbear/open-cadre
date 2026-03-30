@@ -1,0 +1,125 @@
+{
+  "last_updated": "2026-03-30",
+  "models": {
+    "anthropic/claude-opus-4-6": {
+      "provider": "anthropic",
+      "name": "Claude Opus 4.6",
+      "sql_accuracy": 0.95,
+      "coding_score": 0.92,
+      "tool_calling": 0.96,
+      "cost_input_1m": 15.0,
+      "cost_output_1m": 75.0,
+      "speed": "slow",
+      "best_for": ["design", "complex reasoning", "coordination"]
+    },
+    "anthropic/claude-sonnet-4-6": {
+      "provider": "anthropic",
+      "name": "Claude Sonnet 4.6",
+      "sql_accuracy": 0.91,
+      "coding_score": 0.90,
+      "tool_calling": 0.94,
+      "cost_input_1m": 3.0,
+      "cost_output_1m": 15.0,
+      "speed": "fast",
+      "best_for": ["code generation", "reviews", "general"]
+    },
+    "anthropic/claude-haiku-4-5-20251001": {
+      "provider": "anthropic",
+      "name": "Claude Haiku 4.5",
+      "sql_accuracy": 0.82,
+      "coding_score": 0.80,
+      "tool_calling": 0.88,
+      "cost_input_1m": 0.8,
+      "cost_output_1m": 4.0,
+      "speed": "fastest",
+      "best_for": ["simple tasks", "high volume", "cost sensitive"]
+    },
+    "openai/gpt-4o": {
+      "provider": "openai",
+      "name": "GPT-4o",
+      "sql_accuracy": 0.90,
+      "coding_score": 0.88,
+      "tool_calling": 0.95,
+      "cost_input_1m": 2.5,
+      "cost_output_1m": 10.0,
+      "speed": "fast",
+      "best_for": ["code generation", "structured output"]
+    },
+    "openai/o3": {
+      "provider": "openai",
+      "name": "o3",
+      "sql_accuracy": 0.94,
+      "coding_score": 0.93,
+      "tool_calling": 0.90,
+      "cost_input_1m": 10.0,
+      "cost_output_1m": 40.0,
+      "speed": "slow",
+      "best_for": ["complex reasoning", "design"]
+    },
+    "google/gemini-2.5-pro": {
+      "provider": "google",
+      "name": "Gemini 2.5 Pro",
+      "sql_accuracy": 0.89,
+      "coding_score": 0.87,
+      "tool_calling": 0.88,
+      "cost_input_1m": 1.25,
+      "cost_output_1m": 10.0,
+      "speed": "fast",
+      "best_for": ["code generation", "large context"]
+    },
+    "mistral/mistral-large-latest": {
+      "provider": "mistral",
+      "name": "Mistral Large",
+      "sql_accuracy": 0.85,
+      "coding_score": 0.83,
+      "tool_calling": 0.82,
+      "cost_input_1m": 2.0,
+      "cost_output_1m": 6.0,
+      "speed": "fast",
+      "best_for": ["code generation", "European compliance"]
+    },
+    "ollama/llama3.3-70b": {
+      "provider": "ollama",
+      "name": "Llama 3.3 70B",
+      "sql_accuracy": 0.78,
+      "coding_score": 0.75,
+      "tool_calling": 0.70,
+      "cost_input_1m": 0.0,
+      "cost_output_1m": 0.0,
+      "speed": "varies",
+      "best_for": ["privacy-sensitive", "offline", "cost-free"]
+    }
+  },
+  "strategies": {
+    "quality_first": {
+      "lead": "anthropic/claude-opus-4-6",
+      "architect": "anthropic/claude-opus-4-6",
+      "engineer": "anthropic/claude-sonnet-4-6",
+      "qa": "anthropic/claude-sonnet-4-6"
+    },
+    "balanced": {
+      "lead": "anthropic/claude-opus-4-6",
+      "architect": "anthropic/claude-sonnet-4-6",
+      "engineer": "anthropic/claude-sonnet-4-6",
+      "qa": "anthropic/claude-sonnet-4-6"
+    },
+    "cost_optimized": {
+      "lead": "anthropic/claude-sonnet-4-6",
+      "architect": "openai/gpt-4o",
+      "engineer": "google/gemini-2.5-pro",
+      "qa": "google/gemini-2.5-pro"
+    },
+    "mixed_best": {
+      "lead": "anthropic/claude-opus-4-6",
+      "architect": "openai/o3",
+      "engineer": "anthropic/claude-sonnet-4-6",
+      "qa": "openai/gpt-4o"
+    },
+    "local_only": {
+      "lead": "ollama/llama3.3-70b",
+      "architect": "ollama/llama3.3-70b",
+      "engineer": "ollama/llama3.3-70b",
+      "qa": "ollama/llama3.3-70b"
+    }
+  }
+}

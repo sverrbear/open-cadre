@@ -1,0 +1,49 @@
+"""Tests for CLI commands."""
+
+from __future__ import annotations
+
+from click.testing import CliRunner
+
+from cadre.cli import main
+
+
+def test_version():
+    runner = CliRunner()
+    result = runner.invoke(main, ["--version"])
+    assert result.exit_code == 0
+    assert "0.1.0" in result.output
+
+
+def test_models():
+    runner = CliRunner()
+    result = runner.invoke(main, ["models"])
+    assert result.exit_code == 0
+    assert "claude-opus" in result.output or "Benchmark" in result.output
+
+
+def test_workflow_list():
+    runner = CliRunner()
+    result = runner.invoke(main, ["workflow", "list"])
+    assert result.exit_code == 0
+    assert "design-implement-review" in result.output
+
+
+def test_doctor():
+    runner = CliRunner()
+    result = runner.invoke(main, ["doctor"])
+    assert result.exit_code == 0
+    assert "Python" in result.output
+
+
+def test_status_no_config():
+    runner = CliRunner()
+    result = runner.invoke(main, ["status", "--config", "nonexistent.yml"])
+    assert result.exit_code == 0
+    assert "not found" in result.output
+
+
+def test_config_show_no_config():
+    runner = CliRunner()
+    result = runner.invoke(main, ["config", "show", "--config", "nonexistent.yml"])
+    assert result.exit_code == 0
+    assert "not found" in result.output
