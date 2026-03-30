@@ -20,22 +20,9 @@ from cadre.config import (
     WorkflowsConfig,
 )
 from cadre.detect import detect_project
+from cadre.keys import PROVIDER_DASHBOARDS, PROVIDER_ENV_VARS, generate_env_file, key_set
 
 console = Console()
-
-# Provider → env var mapping
-PROVIDER_ENV_VARS = {
-    "anthropic": "ANTHROPIC_API_KEY",
-    "openai": "OPENAI_API_KEY",
-    "google": "GOOGLE_API_KEY",
-}
-
-# Provider → API key dashboard URLs
-PROVIDER_DASHBOARDS = {
-    "anthropic": "https://console.anthropic.com/settings/keys",
-    "openai": "https://platform.openai.com/api-keys",
-    "google": "https://aistudio.google.com/apikey",
-}
 
 # Model strategies
 STRATEGIES = {
@@ -146,9 +133,10 @@ def run_init(base_path: Path | None = None) -> CadreConfig:
 
     # --- API Keys ---
     console.print("\n[bold]API Keys[/bold]")
-    console.print("  [dim]Keys are stored locally in .cadre/config.yml (gitignored).[/dim]\n")
+    console.print("  [dim]Keys are stored locally in cadre.env (gitignored).[/dim]\n")
 
     providers: dict[str, ProviderConfig] = {}
+    entered_keys: dict[str, str] = {}
     for provider, env_var in PROVIDER_ENV_VARS.items():
         env_value = os.environ.get(env_var)
         if env_value:
@@ -166,7 +154,9 @@ def run_init(base_path: Path | None = None) -> CadreConfig:
                     console.print("  [dim]Create an API key and paste it below.[/dim]")
                 key = Prompt.ask(f"  {provider} API key", default="", show_default=False)
                 if key.strip():
-                    providers[provider] = ProviderConfig(api_key=key.strip())
+                    entered_keys[provider] = key.strip()
+                    key_set(base_path, provider=provider, value=key.strip())
+                    providers[provider] = ProviderConfig(api_key=f"${{{env_var}}}")
                     console.print(f"  [green]✓[/green] {provider} configured")
                 else:
                     console.print(f"  [dim]  Skipped {provider}[/dim]")
@@ -174,6 +164,7 @@ def run_init(base_path: Path | None = None) -> CadreConfig:
     if not providers:
         console.print("\n  [yellow]No API keys configured.[/yellow]")
         console.print("  You'll need at least one to use cadre.")
+        console.print("  Run [bold]cadre keys set anthropic[/bold] after init.")
         providers["anthropic"] = ProviderConfig(api_key=f"${{{PROVIDER_ENV_VARS['anthropic']}}}")
 
     # --- Team ---
@@ -193,6 +184,23 @@ def run_init(base_path: Path | None = None) -> CadreConfig:
         for name in agent_names
     }
 
+    # Optional per-agent model customization
+    if Confirm.ask("\n  Customize individual agent models?", default=False):
+        console.print("  [dim]Enter a model (e.g. openai/gpt-4o) or press Enter to keep.[/dim]")
+        for name in agent_names:
+            current = agents[name].model
+            custom = Prompt.ask(f"    {name}", default=current)
+            if custom != current:
+                agents[name] = AgentConfig(model=custom)
+                provider = custom.split("/", 1)[0] if "/" in custom else None
+                if provider and provider != "ollama":
+                    env_var = PROVIDER_ENV_VARS.get(provider)
+                    if env_var and not os.environ.get(env_var):
+                        console.print(
+                            f"    [yellow]No API key for {provider}. "
+                            f"Run `cadre keys set {provider}` later.[/yellow]"
+                        )
+
     # --- Build and save ---
     config = CadreConfig(
         project=ProjectConfig(
@@ -209,7 +217,10 @@ def run_init(base_path: Path | None = None) -> CadreConfig:
 
     config.save(base_path)
 
-    # Ensure .cadre/ is in .gitignore
+    # Generate cadre.env with entered keys + placeholders
+    generate_env_file(base_path, keys=entered_keys)
+
+    # Ensure .cadre/ and cadre.env are in .gitignore
     _ensure_gitignored(base_path)
 
     # Print summary
@@ -217,26 +228,36 @@ def run_init(base_path: Path | None = None) -> CadreConfig:
     for name in agents:
         console.print(f"  [green]✓[/green] Created {CADRE_DIR}/agents/{name}.yml")
     console.print(f"  [green]✓[/green] Created {CADRE_DIR}/context.yml")
+    console.print("  [green]✓[/green] Created cadre.env")
 
-    console.print("\n  Run [bold]cadre explore[/bold] to auto-configure agents for your project.")
-    console.print("  Run [bold]cadre doctor[/bold] to verify your setup.\n")
+    has_keys = any(os.environ.get(v) for v in PROVIDER_ENV_VARS.values())
+    console.print("\n  [bold]Next steps:[/bold]")
+    if not has_keys:
+        console.print("  1. Run [bold]cadre keys set anthropic[/bold] to add your API key")
+        console.print("  2. Run [bold]cadre explore[/bold] to auto-configure agents")
+        console.print("  3. Run [bold]cadre up[/bold] to start the TUI")
+    else:
+        console.print("  1. Run [bold]cadre explore[/bold] to auto-configure agents")
+        console.print("  2. Run [bold]cadre up[/bold] to start the TUI")
+    console.print()
 
     return config
 
 
 def _ensure_gitignored(base_path: Path) -> None:
-    """Make sure .cadre/ is listed in .gitignore."""
-    gitignore = base_path / ".gitignore"
-    marker = f"{CADRE_DIR}/"
+    """Make sure .cadre/ and cadre.env are listed in .gitignore."""
+    from cadre.keys import ENV_FILE
 
-    if gitignore.exists():
-        content = gitignore.read_text()
-        if marker in content:
-            return
-        # Append to existing .gitignore
-        if not content.endswith("\n"):
-            content += "\n"
-        content += f"{marker}\n"
-        gitignore.write_text(content)
-    else:
-        gitignore.write_text(f"{marker}\n")
+    gitignore = base_path / ".gitignore"
+    markers = [f"{CADRE_DIR}/", ENV_FILE]
+
+    content = gitignore.read_text() if gitignore.exists() else ""
+    missing = [m for m in markers if m not in content]
+    if not missing:
+        return
+
+    if content and not content.endswith("\n"):
+        content += "\n"
+    for m in missing:
+        content += f"{m}\n"
+    gitignore.write_text(content)

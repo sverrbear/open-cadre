@@ -24,12 +24,7 @@ from cadre.config import (
     WorkflowsConfig,
 )
 from cadre.detect import detect_project
-
-PROVIDER_ENV_VARS = {
-    "anthropic": "ANTHROPIC_API_KEY",
-    "openai": "OPENAI_API_KEY",
-    "google": "GOOGLE_API_KEY",
-}
+from cadre.keys import PROVIDER_ENV_VARS, generate_env_file, key_set
 
 STRATEGIES = {
     "balanced": {
@@ -298,6 +293,7 @@ class InitScreen(Screen[CadreConfig | None]):
 
         # Detect providers from env or manual input
         providers: dict[str, ProviderConfig] = {}
+        entered_keys: dict[str, str] = {}
         for provider, env_var in PROVIDER_ENV_VARS.items():
             env_value = os.environ.get(env_var)
             if env_value:
@@ -308,8 +304,8 @@ class InitScreen(Screen[CadreConfig | None]):
                     key_input = self.query_one(f"#api-key-{provider}", Input)
                     manual_key = key_input.value.strip()
                     if manual_key:
-                        # Set in current process env so it's available immediately
-                        os.environ[env_var] = manual_key
+                        entered_keys[provider] = manual_key
+                        key_set(self.base_path, provider=provider, value=manual_key)
                         providers[provider] = ProviderConfig(api_key=f"${{{env_var}}}")
                 except Exception:
                     pass
@@ -339,23 +335,26 @@ class InitScreen(Screen[CadreConfig | None]):
         )
 
         config.save(self.base_path)
+        generate_env_file(self.base_path, keys=entered_keys)
         _ensure_gitignored(self.base_path)
 
         self.dismiss(config)
 
 
 def _ensure_gitignored(base_path: Path) -> None:
-    """Make sure .cadre/ is listed in .gitignore."""
-    gitignore = base_path / ".gitignore"
-    marker = f"{CADRE_DIR}/"
+    """Make sure .cadre/ and cadre.env are listed in .gitignore."""
+    from cadre.keys import ENV_FILE
 
-    if gitignore.exists():
-        content = gitignore.read_text()
-        if marker in content:
-            return
-        if not content.endswith("\n"):
-            content += "\n"
-        content += f"{marker}\n"
-        gitignore.write_text(content)
-    else:
-        gitignore.write_text(f"{marker}\n")
+    gitignore = base_path / ".gitignore"
+    markers = [f"{CADRE_DIR}/", ENV_FILE]
+
+    content = gitignore.read_text() if gitignore.exists() else ""
+    missing = [m for m in markers if m not in content]
+    if not missing:
+        return
+
+    if content and not content.endswith("\n"):
+        content += "\n"
+    for m in missing:
+        content += f"{m}\n"
+    gitignore.write_text(content)

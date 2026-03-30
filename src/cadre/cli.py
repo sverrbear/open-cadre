@@ -23,6 +23,10 @@ console = Console()
 @click.pass_context
 def main(ctx):
     """OpenCadre — Provider-agnostic AI team platform for data engineering."""
+    from cadre.keys import load_env
+
+    load_env()
+
     if ctx.invoked_subcommand is None:
         _launch_tui()
 
@@ -97,9 +101,141 @@ def status():
     render_status(team, console)
 
 
-@main.command()
-def models():
-    """Show model benchmarks and recommendations."""
+@main.group(invoke_without_command=True)
+@click.pass_context
+def keys(ctx):
+    """Manage API keys in cadre.env."""
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(keys_show)
+
+
+@keys.command(name="show")
+def keys_show():
+    """Show configured API keys (masked)."""
+    from cadre.keys import PROVIDER_DASHBOARDS, PROVIDER_ENV_VARS, show_keys
+
+    console.print("[bold]API Keys[/bold]\n")
+    key_status = show_keys()
+    for provider, env_var in PROVIDER_ENV_VARS.items():
+        masked = key_status.get(provider)
+        if masked:
+            console.print(f"  [green]✓[/green] {provider:12s} {masked}  ({env_var})")
+        else:
+            dashboard = PROVIDER_DASHBOARDS.get(provider, "")
+            console.print(f"  [red]✗[/red] {provider:12s} not set    ({env_var})")
+            if dashboard:
+                console.print(f"    [dim]Get a key: {dashboard}[/dim]")
+    console.print("\n  [dim]Keys are stored in cadre.env (gitignored).[/dim]")
+    console.print("  [dim]Set a key: cadre keys set <provider>[/dim]\n")
+
+
+@keys.command(name="set")
+@click.argument("provider")
+@click.argument("key_value", required=False)
+def keys_set_cmd(provider: str, key_value: str | None):
+    """Set an API key for a provider."""
+    from cadre.keys import PROVIDER_ENV_VARS, key_set
+
+    if provider not in PROVIDER_ENV_VARS:
+        known = ", ".join(PROVIDER_ENV_VARS)
+        console.print(f"[yellow]Unknown provider '{provider}'.[/yellow] Known: {known}")
+        upper = provider.upper()
+        console.print(f"[dim]Proceeding anyway — key will be saved as {upper}_API_KEY[/dim]")
+
+    if key_value is None:
+        key_value = click.prompt(f"  {provider} API key", hide_input=True)
+    if not key_value.strip():
+        console.print("[yellow]Empty key, nothing saved.[/yellow]")
+        return
+
+    key_set(provider=provider, value=key_value.strip())
+    console.print(f"  [green]✓[/green] {provider} API key saved to cadre.env")
+
+
+@keys.command(name="remove")
+@click.argument("provider")
+def keys_remove_cmd(provider: str):
+    """Remove an API key from cadre.env."""
+    from cadre.keys import key_remove
+
+    key_remove(provider=provider)
+    console.print(f"  [green]✓[/green] {provider} API key removed from cadre.env")
+
+
+main.add_command(keys)
+
+
+@main.group(invoke_without_command=True)
+@click.pass_context
+def models(ctx):
+    """Show and manage model assignments."""
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(models_show)
+
+
+@models.command(name="show")
+def models_show():
+    """Show current model assignments for each agent."""
+    from cadre.keys import check_key_for_model
+
+    cfg = _load_config()
+    if cfg is None:
+        return
+
+    console.print("[bold]Model Assignments[/bold]\n")
+    for name, agent_cfg in cfg.team.agents.items():
+        status = "[green]enabled[/green]" if agent_cfg.enabled else "[red]disabled[/red]"
+        has_key = check_key_for_model(agent_cfg.model)
+        key_icon = "[green]✓[/green]" if has_key else "[yellow]⚠ no key[/yellow]"
+        console.print(f"  {name:12s} {agent_cfg.model:40s} {status}  {key_icon}")
+    console.print(f"\n  Team mode: {cfg.team.mode}")
+    console.print()
+
+
+@models.command(name="set")
+@click.argument("agent")
+@click.argument("model")
+def models_set(agent: str, model: str):
+    """Set the model for a specific agent.
+
+    Example: cadre models set lead openai/gpt-4o
+    """
+    from cadre.keys import check_key_for_model, get_provider_for_model
+
+    cfg = _load_config()
+    if cfg is None:
+        return
+
+    if agent not in cfg.team.agents:
+        available = ", ".join(cfg.team.agents.keys())
+        console.print(f"[red]Agent '{agent}' not found.[/red] Available: {available}")
+        return
+
+    provider = get_provider_for_model(model)
+    if provider and not check_key_for_model(model):
+        console.print(f"[yellow]Warning: No API key found for '{provider}'.[/yellow]")
+        console.print(f"  Run [bold]cadre keys set {provider}[/bold] to add it.\n")
+
+    old_model = cfg.team.agents[agent].model
+    cfg.team.agents[agent].model = model
+    cfg.save()
+    console.print(f"  [green]✓[/green] {agent}: {old_model} → {model}")
+
+
+@models.command(name="list")
+def models_list():
+    """List available models from benchmarks."""
+    from cadre.benchmarks.data import BenchmarkData
+
+    bench = BenchmarkData()
+    bench.render_table(console)
+    console.print("\n  [dim]Any LiteLLM-compatible model string is accepted.[/dim]")
+    console.print("  [dim]See https://docs.litellm.ai/docs/providers for all options.[/dim]\n")
+
+
+@models.command(name="benchmarks")
+def models_benchmarks():
+    """Show model benchmarks and strategy recommendations."""
     from cadre.benchmarks.data import BenchmarkData
 
     bench = BenchmarkData()
@@ -222,20 +358,26 @@ def doctor():
     else:
         console.print(f"  [yellow]![/yellow] {CADRE_DIR}/ not found — run `cadre init`")
 
+    # Check cadre.env
+    from cadre.keys import ENV_FILE, PROVIDER_ENV_VARS
+
+    env_path = Path.cwd() / ENV_FILE
+    if env_path.exists():
+        console.print(f"  [green]✓[/green] {ENV_FILE} found")
+    else:
+        console.print(
+            f"  [yellow]![/yellow] {ENV_FILE} not found — run `cadre init` or `cadre keys set`"
+        )
+
     # Check LLM providers
-    provider_vars = {
-        "anthropic": "ANTHROPIC_API_KEY",
-        "openai": "OPENAI_API_KEY",
-        "google": "GOOGLE_API_KEY",
-    }
     found_providers = False
-    for provider, env_var in provider_vars.items():
+    for provider, env_var in PROVIDER_ENV_VARS.items():
         if os.environ.get(env_var):
             console.print(f"  [green]✓[/green] {provider} ({env_var})")
             found_providers = True
 
     if not found_providers:
-        console.print("  [yellow]![/yellow] No LLM provider API keys found in environment")
+        console.print("  [yellow]![/yellow] No API keys found — run `cadre keys set anthropic`")
 
     # Check optional tools
     for tool_name in ["git", "dbt", "rg", "sqlfluff", "ruff"]:

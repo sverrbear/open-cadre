@@ -32,6 +32,7 @@ dependencies = [
     "pyyaml>=6.0",
     "pydantic>=2.0",
     "textual>=0.85",
+    "python-dotenv>=1.0",
 ]
 
 [project.optional-dependencies]

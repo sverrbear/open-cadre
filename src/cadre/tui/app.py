@@ -70,15 +70,27 @@ class CadreTUI(App):
 
     def on_mount(self) -> None:
         """Set up the team and push the main screen."""
-        self.team.setup()
+        setup_error: str | None = None
+        try:
+            self.team.setup()
+        except Exception as e:
+            from cadre.errors import classify_llm_error, format_error_for_display
+
+            setup_error = format_error_for_display(classify_llm_error(e))
+
         self.router = MessageRouter(team=self.team)
-        self.team.inject_router(self.router)
+        if not setup_error:
+            self.team.inject_router(self.router)
         self.bridge = EventBridge(app=self, router=self.router)
         self.main_screen = MainScreen(config=self.config, team=self.team)
         self.push_screen(self.main_screen)
 
         # Apply initial UI config
         self.call_after_refresh(self._apply_ui_config)
+
+        if setup_error:
+            self.call_after_refresh(lambda: self._show_setup_error(setup_error))
+            return
 
         # Auto-show init screen if no project config exists
         cadre_dir = Path.cwd() / ".cadre"
@@ -90,7 +102,7 @@ class CadreTUI(App):
 
     def _check_api_keys(self) -> None:
         """Check if any API keys are available and warn if not."""
-        from cadre.tui.screens.init_screen import PROVIDER_ENV_VARS
+        from cadre.keys import PROVIDER_ENV_VARS
 
         has_key = any(os.environ.get(v) for v in PROVIDER_ENV_VARS.values())
         if not has_key:
@@ -98,9 +110,19 @@ class CadreTUI(App):
             if team_pane:
                 team_pane.log.write(
                     "[bold yellow]⚠ No API keys detected.[/bold yellow]\n"
-                    "Set environment variables (e.g. ANTHROPIC_API_KEY) or run "
-                    "[bold]/init[/bold] to configure your project.\n"
+                    "Run [bold]/keys set anthropic[/bold] to add your key, "
+                    "or use [bold]/init[/bold] to configure your project.\n"
                 )
+
+    def _show_setup_error(self, error_msg: str) -> None:
+        """Display a team setup error in the chat pane."""
+        team_pane = self._get_team_pane()
+        if team_pane:
+            team_pane.append_error(error_msg)
+            team_pane.log.write(
+                "\n[dim]Use /keys to manage API keys, "
+                "/init to reconfigure, or /help for commands.[/dim]\n"
+            )
 
     def _apply_ui_config(self) -> None:
         """Apply UI config settings to widgets."""
@@ -222,7 +244,8 @@ class CadreTUI(App):
 
     def _handle_slash_command(self, command: str) -> None:
         """Handle slash commands within the TUI."""
-        cmd = command.strip().split()[0]  # Get command without args
+        parts = command.strip().split()
+        cmd = parts[0]
         team_pane = self._get_team_pane()
 
         if cmd in ("/quit", "/exit", "/q"):
@@ -231,14 +254,18 @@ class CadreTUI(App):
             if team_pane:
                 team_pane.log.write(
                     "[bold]Commands:[/bold]\n"
-                    "  /help       Show this help\n"
-                    "  /init       Initialize/reconfigure project\n"
-                    "  /status     Show team status\n"
-                    "  /settings   Open settings (or /config)\n"
-                    "  /models     Show configured models\n"
-                    "  /doctor     Check prerequisites\n"
-                    "  /workflow   Show workflows\n"
-                    "  /quit       Exit\n"
+                    "  /help                         Show this help\n"
+                    "  /init                         Initialize/reconfigure project\n"
+                    "  /keys                         Show API key status\n"
+                    "  /keys set <provider> <key>    Set an API key\n"
+                    "  /models                       Show configured models\n"
+                    "  /models set <agent> <model>   Change agent model\n"
+                    "  /models list                  Show available models\n"
+                    "  /status                       Show team status\n"
+                    "  /settings                     Open settings (or /config)\n"
+                    "  /doctor                       Check prerequisites\n"
+                    "  /workflow                     Show workflows\n"
+                    "  /quit                         Exit\n"
                     "\n[bold]Shortcuts:[/bold]\n"
                     "  ctrl+b      Toggle sidebar\n"
                     "  ctrl+t      Toggle tool panel\n"
@@ -248,14 +275,30 @@ class CadreTUI(App):
                 )
         elif cmd == "/init":
             self._run_init()
+        elif cmd == "/keys":
+            if len(parts) >= 4 and parts[1] == "set":
+                self._set_key(parts[2], parts[3])
+            elif len(parts) == 3 and parts[1] == "set":
+                if team_pane:
+                    team_pane.append_error("Usage: /keys set <provider> <key>")
+            else:
+                self._show_keys()
+        elif cmd == "/models":
+            if len(parts) >= 4 and parts[1] == "set":
+                self._set_model(parts[2], parts[3])
+            elif len(parts) >= 2 and parts[1] == "set":
+                if team_pane:
+                    team_pane.append_error("Usage: /models set <agent> <model>")
+            elif len(parts) >= 2 and parts[1] == "list":
+                self._show_model_list()
+            else:
+                self._show_models()
         elif cmd == "/status":
             sidebar = self._query_main(StatusSidebar)
             if sidebar is not None and not sidebar.display:
                 sidebar.display = True
         elif cmd in ("/settings", "/config"):
             self.action_open_settings()
-        elif cmd == "/models":
-            self._show_models()
         elif cmd == "/doctor":
             self._show_doctor()
         elif cmd == "/workflow":
@@ -264,16 +307,105 @@ class CadreTUI(App):
             if team_pane:
                 team_pane.append_error(f"Unknown command: {cmd}")
 
+    def _show_keys(self) -> None:
+        """Show API key status in team pane."""
+        team_pane = self._get_team_pane()
+        if not team_pane:
+            return
+        from cadre.keys import PROVIDER_DASHBOARDS, PROVIDER_ENV_VARS, show_keys
+
+        key_status = show_keys()
+        lines = ["[bold]API Keys:[/bold]"]
+        for provider in PROVIDER_ENV_VARS:
+            masked = key_status.get(provider)
+            if masked:
+                lines.append(f"  [green]✓[/green] {provider:12s} {masked}")
+            else:
+                dashboard = PROVIDER_DASHBOARDS.get(provider, "")
+                lines.append(f"  [red]✗[/red] {provider:12s} not set")
+                if dashboard:
+                    lines.append(f"    [dim]{dashboard}[/dim]")
+        lines.append("\n[dim]Set a key: /keys set <provider> <key>[/dim]")
+        team_pane.log.write("\n".join(lines) + "\n")
+
+    def _set_key(self, provider: str, value: str) -> None:
+        """Set an API key from the TUI."""
+        team_pane = self._get_team_pane()
+        if not team_pane:
+            return
+        from cadre.keys import key_set
+
+        key_set(provider=provider, value=value)
+        team_pane.log.write(f"[green]✓[/green] {provider} API key saved to cadre.env\n")
+
     def _show_models(self) -> None:
         """Show configured models in team pane."""
         team_pane = self._get_team_pane()
         if not team_pane:
             return
+        from cadre.keys import check_key_for_model
+
         lines = ["[bold]Configured Models:[/bold]"]
         for name, agent_cfg in self.config.team.agents.items():
             status = "enabled" if agent_cfg.enabled else "disabled"
-            lines.append(f"  {name:12s} {agent_cfg.model} ({status})")
+            has_key = check_key_for_model(agent_cfg.model)
+            key_icon = "[green]✓[/green]" if has_key else "[yellow]⚠[/yellow]"
+            lines.append(f"  {name:12s} {agent_cfg.model} ({status}) {key_icon}")
         lines.append(f"\n  Team mode: {self.config.team.mode}")
+        lines.append("[dim]Change: /models set <agent> <model>[/dim]")
+        team_pane.log.write("\n".join(lines) + "\n")
+
+    def _set_model(self, agent_name: str, model: str) -> None:
+        """Change an agent's model from the TUI."""
+        team_pane = self._get_team_pane()
+        if not team_pane:
+            return
+
+        if agent_name not in self.config.team.agents:
+            available = ", ".join(self.config.team.agents.keys())
+            team_pane.append_error(f"Agent '{agent_name}' not found. Available: {available}")
+            return
+
+        from cadre.keys import check_key_for_model, get_provider_for_model
+
+        provider = get_provider_for_model(model)
+        if provider and not check_key_for_model(model):
+            team_pane.log.write(
+                f"[yellow]Warning: No API key for '{provider}'. "
+                f"Use /keys set {provider} <key> first.[/yellow]\n"
+            )
+
+        old_model = self.config.team.agents[agent_name].model
+        self.config.team.agents[agent_name].model = model
+
+        # Update the live agent object
+        if agent_name in self.team.agents:
+            self.team.agents[agent_name].model = model
+
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            self.config.save()
+
+        team_pane.log.write(f"[green]✓[/green] {agent_name}: {old_model} → {model}\n")
+
+    def _show_model_list(self) -> None:
+        """Show available models from benchmark data."""
+        team_pane = self._get_team_pane()
+        if not team_pane:
+            return
+        from cadre.benchmarks.data import BenchmarkData
+
+        bench = BenchmarkData()
+        models = bench.get_models()
+        lines = ["[bold]Available Models:[/bold]"]
+        for model_id in sorted(models):
+            info = models[model_id]
+            cost_in = info.get("cost_input_1m", 0)
+            speed = info.get("speed", "?")
+            cost = "free" if cost_in == 0 else f"${cost_in}/1M in"
+            lines.append(f"  {model_id:40s} {speed:8s} {cost}")
+        lines.append("\n[dim]Any LiteLLM-compatible model string is accepted.[/dim]")
         team_pane.log.write("\n".join(lines) + "\n")
 
     def _show_doctor(self) -> None:
@@ -284,13 +416,13 @@ class CadreTUI(App):
         lines = ["[bold]Doctor — Prerequisite Check:[/bold]"]
 
         # Check API keys
-        from cadre.tui.screens.init_screen import PROVIDER_ENV_VARS
+        from cadre.keys import PROVIDER_ENV_VARS
 
         for provider, env_var in PROVIDER_ENV_VARS.items():
             if os.environ.get(env_var):
                 lines.append(f"  [green]✓[/green] {provider} API key set (${env_var})")
             else:
-                lines.append(f"  [red]✗[/red] {provider} API key missing (${env_var})")
+                lines.append(f"  [red]✗[/red] {provider} API key missing — /keys set {provider}")
 
         # Check .cadre dir
         cadre_dir = Path.cwd() / ".cadre"
@@ -335,14 +467,25 @@ class CadreTUI(App):
         self.config = result
         # Re-setup team with new config
         self.team = Team(config=self.config)
-        self.team.setup()
+        setup_error: str | None = None
+        try:
+            self.team.setup()
+        except Exception as e:
+            from cadre.errors import classify_llm_error, format_error_for_display
+
+            setup_error = format_error_for_display(classify_llm_error(e))
+
         self.router = MessageRouter(team=self.team)
-        self.team.inject_router(self.router)
+        if not setup_error:
+            self.team.inject_router(self.router)
         self.bridge = EventBridge(app=self, router=self.router)
         # Refresh the main screen
         self.pop_screen()
         self.main_screen = MainScreen(config=self.config, team=self.team)
         self.push_screen(self.main_screen)
+
+        if setup_error:
+            self.call_after_refresh(lambda: self._show_setup_error(setup_error))
 
     def action_toggle_sidebar(self) -> None:
         """Toggle the status sidebar visibility."""

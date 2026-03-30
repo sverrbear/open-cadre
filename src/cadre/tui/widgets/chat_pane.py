@@ -70,10 +70,14 @@ class ChatPane(Widget):
         self.log.write(msg)
 
     def append_error(self, content: str) -> None:
-        """Display an error."""
-        msg = Text()
-        msg.append(f"  ✗ {content}", style="bold red")
-        self.log.write(msg)
+        """Display an error with optional hint line."""
+        for line in content.split("\n"):
+            msg = Text()
+            if line.strip().startswith("Hint:"):
+                msg.append(f"  {line.strip()}", style="yellow")
+            else:
+                msg.append(f"  ✗ {line}", style="bold red")
+            self.log.write(msg)
 
     def append_confirmation_needed(self, tool: str) -> None:
         """Display a confirmation request."""

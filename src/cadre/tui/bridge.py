@@ -38,13 +38,20 @@ class EventBridge:
 
         # Emit a synthetic "response_start" so the UI can show the agent name prefix
         first_content = True
-        async for event in self.router.route(user_input):
-            if first_content and event.type == "content_delta":
-                self.app.post_message(
-                    AgentEventMessage(agent_name, AgentEvent(type="response_start"))
-                )
-                first_content = False
-            self.app.post_message(AgentEventMessage(agent_name, event))
+        try:
+            async for event in self.router.route(user_input):
+                if first_content and event.type == "content_delta":
+                    self.app.post_message(
+                        AgentEventMessage(agent_name, AgentEvent(type="response_start"))
+                    )
+                    first_content = False
+                self.app.post_message(AgentEventMessage(agent_name, event))
+        except Exception as e:
+            from cadre.errors import classify_llm_error, format_error_for_display
+
+            classified = classify_llm_error(e)
+            error_event = AgentEvent(type="error", content=format_error_for_display(classified))
+            self.app.post_message(AgentEventMessage(agent_name, error_event))
 
     def _resolve_target(self, message: str) -> str:
         """Determine which agent a message is targeting."""

@@ -136,6 +136,36 @@ class SettingsScreen(ModalScreen[CadreConfig | None]):
                     options = [Option(name, id=name) for name in self.available_themes]
                     yield OptionList(*options, id="theme-list")
 
+                # Keys tab
+                with TabPane("Keys", id="tab-keys"):
+                    yield Label("API Keys", classes="section-label")
+                    yield Static(
+                        "[dim]Keys are saved to cadre.env (gitignored)[/dim]",
+                        classes="field-hint",
+                    )
+                    from cadre.keys import PROVIDER_DASHBOARDS, PROVIDER_ENV_VARS
+
+                    for provider, env_var in PROVIDER_ENV_VARS.items():
+                        yield Label(f"  {provider} ({env_var})", classes="field-label")
+                        import os
+
+                        existing = os.environ.get(env_var, "")
+                        placeholder = (
+                            "Key set (enter new to replace)" if existing else "Enter API key"
+                        )
+                        yield Input(
+                            value="",
+                            placeholder=placeholder,
+                            password=True,
+                            id=f"key-{provider}",
+                        )
+                        dashboard = PROVIDER_DASHBOARDS.get(provider, "")
+                        if dashboard:
+                            yield Static(
+                                f"    [dim]Get key: {dashboard}[/dim]",
+                                classes="field-hint",
+                            )
+
                 # Team tab
                 with TabPane("Team", id="tab-team"):
                     yield Label("Mode", classes="field-label")
@@ -232,6 +262,18 @@ class SettingsScreen(ModalScreen[CadreConfig | None]):
 
     def _apply_and_dismiss(self) -> None:
         """Collect all settings and dismiss with updated config."""
+        # API Keys — save any entered keys to cadre.env
+        from cadre.keys import PROVIDER_ENV_VARS, key_set
+
+        for provider in PROVIDER_ENV_VARS:
+            try:
+                key_input = self.query_one(f"#key-{provider}", Input)
+                value = key_input.value.strip()
+                if value:
+                    key_set(provider=provider, value=value)
+            except Exception:
+                pass
+
         # Theme
         theme_list = self.query_one("#theme-list", OptionList)
         highlighted = theme_list.highlighted
