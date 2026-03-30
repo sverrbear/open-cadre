@@ -1,0 +1,181 @@
+/* OpenCadre Monokai Theme */
+
+Screen {
+    background: #272822;
+    color: #f8f8f2;
+}
+
+/* Header */
+HeaderBar {
+    dock: top;
+    height: 3;
+    background: #3e3d32;
+    color: #f8f8f2;
+    padding: 0 2;
+    content-align: left middle;
+}
+
+HeaderBar #title {
+    color: #a6e22e;
+    text-style: bold;
+}
+
+HeaderBar #subtitle {
+    color: #75715e;
+}
+
+/* Input bar */
+InputBar {
+    dock: bottom;
+    height: 3;
+    padding: 0 1;
+    background: #3e3d32;
+}
+
+InputBar Input {
+    background: #272822;
+    color: #f8f8f2;
+    border: tall #49483e;
+    padding: 0 1;
+}
+
+InputBar Input:focus {
+    border: tall #a6e22e;
+}
+
+/* Status sidebar */
+StatusSidebar {
+    width: 32;
+    background: #1e1f1c;
+    border-left: solid #3e3d32;
+    padding: 1;
+}
+
+StatusSidebar .agent-card {
+    height: 3;
+    padding: 0 1;
+    margin-bottom: 1;
+    background: #272822;
+}
+
+StatusSidebar .agent-name {
+    color: #66d9ef;
+    text-style: bold;
+}
+
+StatusSidebar .agent-model {
+    color: #75715e;
+}
+
+StatusSidebar .status-idle {
+    color: #a6e22e;
+}
+
+StatusSidebar .status-thinking {
+    color: #e6db74;
+}
+
+StatusSidebar .status-tool-calling {
+    color: #66d9ef;
+}
+
+StatusSidebar .status-waiting {
+    color: #ae81ff;
+}
+
+StatusSidebar .status-error {
+    color: #f92672;
+}
+
+/* Agent tabs */
+AgentTabs {
+    height: 1fr;
+}
+
+TabbedContent {
+    height: 1fr;
+}
+
+TabPane {
+    padding: 0;
+}
+
+ContentSwitcher {
+    height: 1fr;
+}
+
+Tabs {
+    background: #3e3d32;
+    color: #75715e;
+}
+
+Tab {
+    background: #3e3d32;
+    color: #75715e;
+    padding: 0 2;
+}
+
+Tab.-active {
+    background: #272822;
+    color: #a6e22e;
+    text-style: bold;
+}
+
+Tab:hover {
+    color: #f8f8f2;
+}
+
+Underline {
+    color: #a6e22e;
+}
+
+/* Chat pane */
+ChatPane {
+    height: 1fr;
+    background: #272822;
+}
+
+ChatPane RichLog {
+    height: 1fr;
+    background: #272822;
+    padding: 0 1;
+    scrollbar-size: 1 1;
+}
+
+/* Tool output panel */
+ToolOutputPanel {
+    height: 12;
+    background: #1e1f1c;
+    border-top: solid #3e3d32;
+}
+
+ToolOutputPanel #tool-header {
+    height: 1;
+    background: #3e3d32;
+    color: #75715e;
+    padding: 0 1;
+}
+
+ToolOutputPanel RichLog {
+    height: 1fr;
+    background: #1e1f1c;
+    padding: 0 1;
+    scrollbar-size: 1 1;
+}
+
+/* Main layout */
+#main-content {
+    height: 1fr;
+}
+
+#chat-area {
+    width: 1fr;
+}
+
+/* Scrollbar styling */
+Scrollbar {
+    background: #272822;
+    scrollbar-color: #49483e;
+    scrollbar-color-hover: #75715e;
+    scrollbar-color-active: #a6e22e;
+}

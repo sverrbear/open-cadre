@@ -24,7 +24,14 @@ console = Console()
 def main(ctx):
     """OpenCadre — Provider-agnostic AI team platform for data engineering."""
     if ctx.invoked_subcommand is None:
-        _show_welcome()
+        # If project is configured, launch the TUI directly
+        from cadre.config import CADRE_DIR
+
+        cadre_dir = Path.cwd() / CADRE_DIR
+        if cadre_dir.exists():
+            _launch_tui()
+        else:
+            _show_welcome()
 
 
 @main.command()
@@ -46,15 +53,8 @@ def explore(model: str | None):
 
 @main.command()
 def up():
-    """Start the AI team and open the chat interface."""
-    from cadre.ui.app import App
-
-    cfg = _load_config()
-    if cfg is None:
-        return
-
-    app = App(cfg)
-    app.run_sync()
+    """Start the AI team and open the interactive TUI."""
+    _launch_tui()
 
 
 @main.command()
@@ -279,6 +279,18 @@ def config_cmd(action: str):
         console.print("\n  [bold]Project Context:[/bold]")
         console.print(f"    {cfg.context.description}")
     console.print()
+
+
+def _launch_tui() -> None:
+    """Launch the Textual TUI."""
+    from cadre.tui.app import CadreTUI
+
+    cfg = _load_config()
+    if cfg is None:
+        return
+
+    app = CadreTUI(cfg)
+    app.run()
 
 
 def _show_welcome() -> None:

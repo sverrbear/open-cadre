@@ -95,6 +95,16 @@ class ProjectContext(BaseModel):
     notes: str = ""
 
 
+class UIConfig(BaseModel):
+    """TUI display configuration."""
+
+    theme: str = "dark"
+    sidebar_visible: bool = True
+    sidebar_width: int = 32
+    tool_panel_visible: bool = True
+    tool_panel_height: int = 12
+
+
 class CadreConfig(BaseModel):
     """Root configuration — loaded from .cadre/ directory."""
 
@@ -104,6 +114,7 @@ class CadreConfig(BaseModel):
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
     workflows: WorkflowsConfig = Field(default_factory=WorkflowsConfig)
     context: ProjectContext = Field(default_factory=ProjectContext)
+    ui: UIConfig = Field(default_factory=UIConfig)
 
     def get_model(self, agent_name: str) -> str:
         """Get the model string for an agent, with fallback to solo model."""
@@ -298,6 +309,9 @@ def _parse_raw_config(raw: dict[str, Any]) -> dict[str, Any]:
             custom={k: v for k, v in wf_raw.items() if k != "default"},
         )
 
+    if "ui" in raw:
+        result["ui"] = UIConfig(**raw["ui"])
+
     return result
 
 
@@ -334,6 +348,13 @@ def _config_to_dict(config: CadreConfig) -> dict[str, Any]:
         },
         "workflows": {
             "default": config.workflows.default,
+        },
+        "ui": {
+            "theme": config.ui.theme,
+            "sidebar_visible": config.ui.sidebar_visible,
+            "sidebar_width": config.ui.sidebar_width,
+            "tool_panel_visible": config.ui.tool_panel_visible,
+            "tool_panel_height": config.ui.tool_panel_height,
         },
     }
 
