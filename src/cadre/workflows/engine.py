@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import TYPE_CHECKING
 
 from cadre.agents.base import AgentEvent
 from cadre.workflows.types import WorkflowDef, WorkflowEvent
@@ -15,7 +16,7 @@ if TYPE_CHECKING:
 class WorkflowEngine:
     """Executes multi-step workflows by routing instructions to agents."""
 
-    def __init__(self, team: "Team", router: "MessageRouter") -> None:
+    def __init__(self, team: Team, router: MessageRouter) -> None:
         self.team = team
         self.router = router
 
@@ -27,10 +28,8 @@ class WorkflowEngine:
 
         for i, step in enumerate(workflow.steps):
             # Check condition
-            if step.condition:
-                # Simple condition check — could be extended
-                if not self._evaluate_condition(step.condition, context):
-                    continue
+            if step.condition and not self._evaluate_condition(step.condition, context):
+                continue
 
             # Build prompt with accumulated context
             prompt = f"{step.instruction}\n\nContext:\n{context}"
@@ -77,6 +76,6 @@ class WorkflowEngine:
         # Simple keyword-based conditions for now
         # e.g., "risk_level:high" checks if "high" appears in context
         if ":" in condition:
-            key, value = condition.split(":", 1)
+            _key, value = condition.split(":", 1)
             return value.lower() in context.lower()
         return True

@@ -44,9 +44,7 @@ def test_agent_history():
 
 def test_agent_find_tool():
     tool = FileReadTool()
-    agent = Agent(
-        name="test", role="Test", system_prompt="test", model="test", tools=[tool]
-    )
+    agent = Agent(name="test", role="Test", system_prompt="test", model="test", tools=[tool])
     assert agent.get_tool("file_read") is not None
     assert agent.get_tool("nonexistent") is None
 

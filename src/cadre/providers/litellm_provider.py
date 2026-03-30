@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import json
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator
+from typing import Any
 
 import litellm
 
@@ -88,9 +88,9 @@ class LiteLLMProvider:
                                     tc_delta.function.name
                                 )
                             if tc_delta.function.arguments:
-                                collected_tool_calls[idx]["function"][
-                                    "arguments"
-                                ] += tc_delta.function.arguments
+                                collected_tool_calls[idx]["function"]["arguments"] += (
+                                    tc_delta.function.arguments
+                                )
 
             # Yield the final assembled message
             msg: dict[str, Any] = {"role": "assistant", "content": collected_content}

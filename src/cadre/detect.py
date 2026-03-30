@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import yaml
 
@@ -105,13 +104,15 @@ def _detect_warehouse(path: Path, result: DetectionResult) -> None:
         try:
             with open(profiles_path) as f:
                 profiles = yaml.safe_load(f) or {}
-            for profile_name, profile in profiles.items():
+            for _profile_name, profile in profiles.items():
                 if isinstance(profile, dict):
                     outputs = profile.get("outputs", {})
-                    for output_name, output in outputs.items():
+                    for _output_name, output in outputs.items():
                         if isinstance(output, dict) and "type" in output:
                             result.warehouse = output["type"]
-                            result.details.append(f"  Detected warehouse: {result.warehouse} (from profiles.yml)")
+                            result.details.append(
+                                f"  Detected warehouse: {result.warehouse} (from profiles.yml)"
+                            )
                             return
         except Exception:
             pass

@@ -55,9 +55,15 @@ class BenchmarkData:
 
             table.add_row(
                 model_id,
-                f".{int(info['sql_accuracy'] * 100) % 100:02d}" if info["sql_accuracy"] < 1 else "1.0",
-                f".{int(info['coding_score'] * 100) % 100:02d}" if info["coding_score"] < 1 else "1.0",
-                f".{int(info['tool_calling'] * 100) % 100:02d}" if info["tool_calling"] < 1 else "1.0",
+                f".{int(info['sql_accuracy'] * 100) % 100:02d}"
+                if info["sql_accuracy"] < 1
+                else "1.0",
+                f".{int(info['coding_score'] * 100) % 100:02d}"
+                if info["coding_score"] < 1
+                else "1.0",
+                f".{int(info['tool_calling'] * 100) % 100:02d}"
+                if info["tool_calling"] < 1
+                else "1.0",
                 info["speed"],
                 cost_str,
             )

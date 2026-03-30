@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import fnmatch
-from dataclasses import dataclass, field
 from typing import Any
 
 from cadre.tools.base import Tool
@@ -20,7 +19,10 @@ class ShellTool(Tool):
     ) -> None:
         super().__init__(
             name="shell",
-            description="Execute a shell command and return its output. Commands are checked against allow/deny rules.",
+            description=(
+                "Execute a shell command and return its output."
+                " Commands are checked against allow/deny rules."
+            ),
             parameters={
                 "type": "object",
                 "properties": {

@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import fnmatch
-import os
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -46,10 +43,7 @@ class FileReadTool(Tool):
             lines = text.splitlines(keepends=True)
             offset = args.get("offset", 0)
             limit = args.get("limit")
-            if limit is not None:
-                lines = lines[offset : offset + limit]
-            else:
-                lines = lines[offset:]
+            lines = lines[offset : offset + limit] if limit is not None else lines[offset:]
             numbered = [f"{i + offset + 1}\t{line}" for i, line in enumerate(lines)]
             return "".join(numbered)
         except Exception as e:
@@ -62,7 +56,10 @@ class FileWriteTool(Tool):
     def __init__(self) -> None:
         super().__init__(
             name="file_write",
-            description="Write content to a file. Creates the file if it doesn't exist, overwrites if it does.",
+            description=(
+                "Write content to a file. Creates the file if it doesn't exist,"
+                " overwrites if it does."
+            ),
             parameters={
                 "type": "object",
                 "properties": {
@@ -95,7 +92,10 @@ class FileEditTool(Tool):
                 "type": "object",
                 "properties": {
                     "path": {"type": "string", "description": "Path to the file to edit"},
-                    "old_string": {"type": "string", "description": "Exact string to find and replace"},
+                    "old_string": {
+                        "type": "string",
+                        "description": "Exact string to find and replace",
+                    },
                     "new_string": {"type": "string", "description": "Replacement string"},
                 },
                 "required": ["path", "old_string", "new_string"],
@@ -159,7 +159,10 @@ class GrepTool(Tool):
     def __init__(self) -> None:
         super().__init__(
             name="grep",
-            description="Search for a regex pattern in files. Returns matching lines with file paths and line numbers.",
+            description=(
+                "Search for a regex pattern in files."
+                " Returns matching lines with file paths and line numbers."
+            ),
             parameters={
                 "type": "object",
                 "properties": {
@@ -178,7 +181,6 @@ class GrepTool(Tool):
         )
 
     async def execute(self, args: dict[str, Any]) -> str:
-        import re
         import subprocess
 
         pattern = args["pattern"]

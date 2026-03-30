@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import re
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -39,23 +38,38 @@ class TeamConfig(BaseModel):
     """Team configuration."""
 
     mode: str = "full"  # full | solo
-    agents: dict[str, AgentConfig] = Field(default_factory=lambda: {
-        "lead": AgentConfig(model="anthropic/claude-opus-4-6"),
-        "architect": AgentConfig(model="anthropic/claude-sonnet-4-6"),
-        "engineer": AgentConfig(model="anthropic/claude-sonnet-4-6"),
-        "qa": AgentConfig(model="anthropic/claude-sonnet-4-6"),
-    })
+    agents: dict[str, AgentConfig] = Field(
+        default_factory=lambda: {
+            "lead": AgentConfig(model="anthropic/claude-opus-4-6"),
+            "architect": AgentConfig(model="anthropic/claude-sonnet-4-6"),
+            "engineer": AgentConfig(model="anthropic/claude-sonnet-4-6"),
+            "qa": AgentConfig(model="anthropic/claude-sonnet-4-6"),
+        }
+    )
 
 
 class ToolsConfig(BaseModel):
     """Tool permission configuration."""
 
-    shell_allow: list[str] = Field(default_factory=lambda: [
-        "git *", "dbt compile*", "dbt ls*", "dbt test*", "sqlfluff*", "ruff*",
-    ])
-    shell_deny: list[str] = Field(default_factory=lambda: [
-        "rm -rf*", "dbt run --full-refresh*", "DROP*", "DELETE FROM*", "TRUNCATE*",
-    ])
+    shell_allow: list[str] = Field(
+        default_factory=lambda: [
+            "git *",
+            "dbt compile*",
+            "dbt ls*",
+            "dbt test*",
+            "sqlfluff*",
+            "ruff*",
+        ]
+    )
+    shell_deny: list[str] = Field(
+        default_factory=lambda: [
+            "rm -rf*",
+            "dbt run --full-refresh*",
+            "DROP*",
+            "DELETE FROM*",
+            "TRUNCATE*",
+        ]
+    )
 
 
 class WorkflowsConfig(BaseModel):
@@ -94,10 +108,7 @@ class CadreConfig(BaseModel):
     @classmethod
     def load(cls, path: str | Path | None = None) -> CadreConfig:
         """Load config from a cadre.yml file."""
-        if path is None:
-            path = Path("cadre.yml")
-        else:
-            path = Path(path)
+        path = Path("cadre.yml") if path is None else Path(path)
 
         if not path.exists():
             return cls()
@@ -112,10 +123,7 @@ class CadreConfig(BaseModel):
 
     def save(self, path: str | Path | None = None) -> None:
         """Save config to a cadre.yml file."""
-        if path is None:
-            path = Path("cadre.yml")
-        else:
-            path = Path(path)
+        path = Path("cadre.yml") if path is None else Path(path)
 
         data = _config_to_dict(self)
         with open(path, "w") as f:
@@ -126,8 +134,10 @@ def _resolve_env_vars(obj: Any) -> Any:
     """Recursively resolve ${VAR_NAME} references in config values."""
     if isinstance(obj, str):
         pattern = r"\$\{(\w+)\}"
+
         def replacer(match: re.Match) -> str:
             return os.environ.get(match.group(1), match.group(0))
+
         return re.sub(pattern, replacer, obj)
     elif isinstance(obj, dict):
         return {k: _resolve_env_vars(v) for k, v in obj.items()}
@@ -190,9 +200,10 @@ def _config_to_dict(config: CadreConfig) -> dict[str, Any]:
             "ci_platform": config.project.ci_platform,
         },
         "providers": {
-            name: {"api_key": f"${{{name.upper()}_API_KEY}}"}
-            for name in config.providers
-        } if config.providers else {
+            name: {"api_key": f"${{{name.upper()}_API_KEY}}"} for name in config.providers
+        }
+        if config.providers
+        else {
             "anthropic": {"api_key": "${ANTHROPIC_API_KEY}"},
         },
         "team": {

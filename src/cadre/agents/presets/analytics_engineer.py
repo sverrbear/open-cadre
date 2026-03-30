@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from cadre.config import CadreConfig
 
 
-def create_engineer(config: "CadreConfig") -> Agent:
+def create_engineer(config: CadreConfig) -> Agent:
     """Create the Analytics Engineer agent."""
     project = config.project
     model = config.get_model("engineer")
@@ -28,7 +28,8 @@ def create_engineer(config: "CadreConfig") -> Agent:
     system_prompt = f"""You are the Analytics Engineer for {project.name}.
 
 ## Your Role
-You implement data models based on approved designs. You write SQL, dbt models, tests, and documentation.
+You implement data models based on approved designs.
+You write SQL, dbt models, tests, and documentation.
 
 ## Your Responsibilities
 1. **Implement designs** — Write the SQL/dbt model exactly as specified by the architect
@@ -65,11 +66,19 @@ For every model you create or modify:
         system_prompt=system_prompt,
         model=model,
         tools=[
-            FileReadTool(), FileWriteTool(), FileEditTool(),
-            GlobTool(), GrepTool(), CodeSearchTool(),
+            FileReadTool(),
+            FileWriteTool(),
+            FileEditTool(),
+            GlobTool(),
+            GrepTool(),
+            CodeSearchTool(),
             shell_tool,
-            GitStatusTool(), GitDiffTool(), GitCommitTool(),
-            DbtCompileTool(), DbtLsTool(), DbtTestTool(),
+            GitStatusTool(),
+            GitDiffTool(),
+            GitCommitTool(),
+            DbtCompileTool(),
+            DbtLsTool(),
+            DbtTestTool(),
         ],
         workflow_description="Implements design → writes tests + docs → validates → commits",
         can_write_code=True,

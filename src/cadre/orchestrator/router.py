@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import re
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import AsyncIterator
 
 from cadre.agents.base import AgentEvent
-from cadre.agents.loop import AgentLoop
 from cadre.orchestrator.team import Team
 
 
@@ -41,7 +40,10 @@ class MessageRouter:
         if loop is None:
             yield AgentEvent(
                 type="error",
-                content=f"Agent '{agent_name}' not found. Available: {', '.join(self.team.agents.keys())}",
+                content=(
+                    f"Agent '{agent_name}' not found."
+                    f" Available: {', '.join(self.team.agents.keys())}"
+                ),
             )
             return
 

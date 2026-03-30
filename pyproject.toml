@@ -49,9 +49,10 @@ packages = ["src/cadre"]
 [tool.ruff]
 target-version = "py310"
 line-length = 100
+src = ["src"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W"]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "RUF"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import click
 from rich.console import Console
 from rich.panel import Panel
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Prompt
 
 from cadre import __version__
 from cadre.config import (
@@ -171,7 +170,7 @@ def run_init(output_path: Path | None = None) -> CadreConfig:
     # Save
     config.save(output_path)
     console.print(f"\n  [green]✓[/green] Written {output_path}")
-    console.print(f"\n  Run [bold]cadre up[/bold] to start your team.")
-    console.print(f"  Run [bold]cadre models[/bold] to see model benchmarks.\n")
+    console.print("\n  Run [bold]cadre up[/bold] to start your team.")
+    console.print("  Run [bold]cadre models[/bold] to see model benchmarks.\n")
 
     return config

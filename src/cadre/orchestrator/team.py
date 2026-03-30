@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
 
 from cadre.agents.base import Agent, AgentStatus
 from cadre.agents.loop import AgentLoop

@@ -12,7 +12,7 @@ class _GitTool(Tool):
     """Base for git tools — runs git commands."""
 
     async def _run_git(self, *args: str, cwd: str | None = None) -> str:
-        cmd = ["git"] + list(args)
+        cmd = ["git", *args]
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,

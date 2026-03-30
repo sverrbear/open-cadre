@@ -12,7 +12,7 @@ class _DbtTool(Tool):
     """Base for dbt tools."""
 
     async def _run_dbt(self, *args: str) -> str:
-        cmd = ["dbt"] + list(args)
+        cmd = ["dbt", *args]
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
