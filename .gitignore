@@ -15,4 +15,5 @@ env/
 .ruff_cache/
 .mypy_cache/
 cadre.yml
+.cadre/
 .DS_Store

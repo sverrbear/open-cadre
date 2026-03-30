@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from cadre.agents.base import Agent
+from cadre.agents.presets.context import build_extra_context
 from cadre.tools.dbt import DbtCompileTool, DbtLsTool, DbtTestTool
 from cadre.tools.file_ops import FileEditTool, FileReadTool, FileWriteTool, GlobTool, GrepTool
 from cadre.tools.git import GitCommitTool, GitDiffTool, GitLogTool, GitStatusTool
@@ -41,7 +42,7 @@ For any task, follow this process:
 ## Project Context
 - Project: {project.name}
 - Warehouse: {project.warehouse}
-
+{build_extra_context(config, "solo")}
 ## Guidelines
 - Always explore existing code before writing new code
 - Follow established patterns in the project

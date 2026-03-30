@@ -1,6 +1,21 @@
 # OpenCadre Configuration
-# Copy this to cadre.yml and customize for your project.
-# Run `cadre init` for an interactive setup wizard.
+#
+# Run `cadre init` to create your .cadre/ config directory interactively.
+# Run `cadre explore` to auto-configure agents for your codebase.
+#
+# Config layout:
+#   .cadre/
+#     config.yml          ← main config (this file's format)
+#     context.yml         ← project context (auto-populated by `cadre explore`)
+#     agents/
+#       lead.yml          ← per-agent config (model, enabled, extra_context)
+#       architect.yml
+#       engineer.yml
+#       qa.yml
+#
+# The .cadre/ directory is gitignored — it contains local settings and API keys.
+
+# --- .cadre/config.yml ---
 
 project:
   name: "My Analytics Project"
@@ -22,21 +37,6 @@ providers:
 # Team configuration
 team:
   mode: full                         # full (4 agents) | solo (1 agent)
-  agents:
-    lead:
-      model: anthropic/claude-opus-4-6
-      enabled: true
-    architect:
-      model: anthropic/claude-sonnet-4-6
-      enabled: true
-    engineer:
-      model: anthropic/claude-sonnet-4-6
-      enabled: true
-    qa:
-      model: anthropic/claude-sonnet-4-6
-      enabled: true
-    # solo:                           # Used when mode: solo
-    #   model: anthropic/claude-sonnet-4-6
 
 # Tool permissions
 tools:
@@ -59,12 +59,23 @@ tools:
 workflows:
   default: design-implement-review   # design-implement-review | code-review | model-creation
 
-  # Custom workflow example:
-  # quick-review:
-  #   description: "Quick review without architect"
-  #   steps:
-  #     - agent: engineer
-  #       instruction: "Implement this change"
-  #     - agent: qa
-  #       instruction: "Review the implementation"
-  #       wait_for_approval: true
+# --- .cadre/agents/lead.yml (example) ---
+#
+# model: anthropic/claude-opus-4-6
+# enabled: true
+# extra_context: |
+#   This project uses medallion architecture with staging, intermediate, and marts layers.
+
+# --- .cadre/context.yml (example — auto-populated by `cadre explore`) ---
+#
+# description: "E-commerce analytics platform built with dbt and Snowflake"
+# tech_stack:
+#   - dbt 1.7
+#   - snowflake
+#   - python 3.12
+# conventions:
+#   - "Use CTEs instead of subqueries"
+#   - "Follow medallion architecture: staging → intermediate → marts"
+# key_paths:
+#   models: "models/"
+#   tests: "tests/"
