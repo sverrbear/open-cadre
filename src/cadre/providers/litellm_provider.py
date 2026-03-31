@@ -33,11 +33,11 @@ class LiteLLMProvider:
         # for all providers (not just the ones we explicitly map here)
         import os
 
-        _LITELLM_ATTR = {
+        litellm_attr = {
             "anthropic": "anthropic_key",
             "openai": "openai_key",
         }
-        _ENV_VAR = {
+        env_var_map = {
             "anthropic": "ANTHROPIC_API_KEY",
             "openai": "OPENAI_API_KEY",
             "google": "GOOGLE_API_KEY",
@@ -47,11 +47,11 @@ class LiteLLMProvider:
             if not key:
                 continue
             # Set on litellm module if it has a named attribute
-            attr = _LITELLM_ATTR.get(provider)
+            attr = litellm_attr.get(provider)
             if attr:
                 setattr(litellm, attr, key)
             # Always set in os.environ so LiteLLM's generic lookup works
-            env_var = _ENV_VAR.get(provider, f"{provider.upper()}_API_KEY")
+            env_var = env_var_map.get(provider, f"{provider.upper()}_API_KEY")
             os.environ.setdefault(env_var, key)
 
     async def complete(
