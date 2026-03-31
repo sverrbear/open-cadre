@@ -41,7 +41,7 @@ class ChatSessionSettings:
 
     permission_mode: str = ""
     model: str = ""
-    effort: str = ""
+    effort: str = "medium"
     skip_permissions: bool = False
 
 

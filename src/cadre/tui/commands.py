@@ -63,13 +63,19 @@ async def _handle_explore(screen: ChatScreen, _args: str) -> None:
         "I'd like you to help me build my team. Here's what I need you to do:\n\n"
         "1. First, explore this repository — read the CLAUDE.md file, check the .claude/ "
         "directory, and analyze the codebase structure, tech stack, and development patterns.\n\n"
-        "2. Then, ask me about how I like to work — my strengths, weaknesses, what I want "
-        "help with most, and how I prefer to collaborate with AI agents.\n\n"
+        "2. Then, ask me questions about how I like to work — my strengths, weaknesses, "
+        "what I want help with most, and how I prefer to collaborate with AI agents.\n\n"
+        "IMPORTANT: Ask me questions ONE AT A TIME. For each question, provide 3-4 "
+        "numbered answer options that I can choose from. Format them like:\n"
+        "1. Option one\n"
+        "2. Option two\n"
+        "3. Option three\n\n"
+        "Wait for my response before asking the next question.\n\n"
         "3. Based on the repo analysis AND my responses, recommend a team composition. "
         "We'll decide together which agents to create, what their roles should be, "
         "and how they should be configured.\n\n"
         "4. Once we agree on a team, help me create the agent files.\n\n"
-        "Let's start — explore the repo and then ask me your questions."
+        "Let's start — explore the repo and then ask me your first question."
     )
 
     log.write("\n[bold #cdd6f4]You:[/bold #cdd6f4] /explore\n")
@@ -110,6 +116,20 @@ async def _handle_dashboard(screen: ChatScreen, _args: str) -> None:
     screen.post_message(screen.OpenDashboard())
 
 
+async def _handle_clear(screen: ChatScreen, _args: str) -> None:
+    """Clear chat history and reset the conversation context."""
+    from textual.widgets import RichLog
+
+    log = screen.query_one("#chat-log", RichLog)
+    log.clear()
+    screen.session_id = None
+    screen._total_input_tokens = 0
+    screen._total_output_tokens = 0
+    screen._last_response_text = ""
+    screen._shown_claude_header = False
+    log.write("[dim]Context cleared. Starting a fresh conversation.[/dim]\n")
+
+
 async def _handle_help(screen: ChatScreen, _args: str) -> None:
     """Show all available commands."""
     log = screen.query_one("#chat-log")
@@ -124,6 +144,7 @@ COMMANDS: dict[str, SlashCommand] = {
     "/explore": SlashCommand("/explore", "Analyze your repo and build a team", _handle_explore),
     "/agents": SlashCommand("/agents", "List installed agents", _handle_agents),
     "/settings": SlashCommand("/settings", "Open session settings", _handle_settings),
+    "/clear": SlashCommand("/clear", "Clear context and start fresh", _handle_clear),
     "/dashboard": SlashCommand("/dashboard", "Open the dashboard view", _handle_dashboard),
     "/help": SlashCommand("/help", "Show available commands", _handle_help),
 }
