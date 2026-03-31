@@ -284,6 +284,8 @@ class CadreTUI(App):
                     "  /settings                     Open settings (or /config)\n"
                     "  /doctor                       Check prerequisites\n"
                     "  /workflow                     Show workflows\n"
+                    "  /clear                        Clear team lead chat & context\n"
+                    "  /clear-all                    Clear all agents' chat & context\n"
                     "  /quit                         Exit\n"
                     "\n[bold]Shortcuts:[/bold]\n"
                     "  ctrl+b      Toggle sidebar\n"
@@ -320,6 +322,10 @@ class CadreTUI(App):
             self.action_open_settings()
         elif cmd == "/agents":
             self._run_agents()
+        elif cmd == "/clear":
+            self._clear_lead()
+        elif cmd == "/clear-all":
+            self._clear_all()
         elif cmd == "/doctor":
             self._show_doctor()
         elif cmd == "/workflow":
@@ -428,6 +434,44 @@ class CadreTUI(App):
             lines.append(f"  {model_id:40s} {speed:8s} {cost}")
         lines.append("\n[dim]Any LiteLLM-compatible model string is accepted.[/dim]")
         team_pane.log.write("\n".join(lines) + "\n")
+
+    def _clear_lead(self) -> None:
+        """Clear team lead's chat history and pane."""
+        lead = self.team.get_agent("lead") or self.team.get_agent("solo")
+        if lead:
+            lead.clear_history()
+
+        agent_tabs = self._query_main(AgentTabs)
+        if agent_tabs:
+            # Clear team pane (where lead messages appear)
+            team_pane = agent_tabs.get_team_pane()
+            if team_pane:
+                team_pane.clear()
+                team_pane.log.write("[dim]Team lead context cleared.[/dim]\n")
+            # Clear lead's individual pane
+            lead_pane = agent_tabs.get_chat_pane("lead") or agent_tabs.get_chat_pane("solo")
+            if lead_pane:
+                lead_pane.clear()
+                lead_pane.log.write("[dim]Context cleared.[/dim]\n")
+
+    def _clear_all(self) -> None:
+        """Clear all agents' chat history and all panes."""
+        for agent in self.team.agents.values():
+            agent.clear_history()
+
+        agent_tabs = self._query_main(AgentTabs)
+        if agent_tabs:
+            # Clear team pane
+            team_pane = agent_tabs.get_team_pane()
+            if team_pane:
+                team_pane.clear()
+                team_pane.log.write("[dim]All agent contexts cleared.[/dim]\n")
+            # Clear each agent pane
+            for name in self.team.agents:
+                pane = agent_tabs.get_chat_pane(name)
+                if pane:
+                    pane.clear()
+                    pane.log.write("[dim]Context cleared.[/dim]\n")
 
     def _show_doctor(self) -> None:
         """Run basic prerequisite checks and show results."""

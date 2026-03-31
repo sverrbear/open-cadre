@@ -25,6 +25,8 @@ SLASH_COMMANDS = {
     "/config": "Show current configuration",
     "/workflow list": "List available workflows",
     "/workflow run": "Run a workflow: /workflow run <name> <request>",
+    "/clear": "Clear team lead chat context",
+    "/clear-all": "Clear all agents' chat context",
     "/quit": "Exit the chat",
 }
 
@@ -103,6 +105,10 @@ class ChatUI:
             self._cmd_doctor()
         elif cmd == "/config":
             self._cmd_config()
+        elif cmd == "/clear":
+            self._cmd_clear()
+        elif cmd == "/clear-all":
+            self._cmd_clear_all()
         elif cmd == "/workflow list":
             self._cmd_workflow_list()
         elif cmd.startswith("/workflow run "):
@@ -186,6 +192,20 @@ class ChatUI:
             if shutil.which(tool_name):
                 self.console.print(f"  [green]✓[/green] {tool_name}")
         self.console.print()
+
+    def _cmd_clear(self) -> None:
+        lead = self.router.team.get_agent("lead") or self.router.team.get_agent("solo")
+        if lead:
+            lead.clear_history()
+            self.console.print("  [green]✓[/green] Team lead context cleared.")
+        else:
+            self.console.print("  [yellow]No lead agent found.[/yellow]")
+
+    def _cmd_clear_all(self) -> None:
+        for agent in self.router.team.agents.values():
+            agent.clear_history()
+        count = len(self.router.team.agents)
+        self.console.print(f"  [green]✓[/green] Cleared context for {count} agent(s).")
 
     def _cmd_config(self) -> None:
         from pathlib import Path
