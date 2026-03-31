@@ -94,10 +94,17 @@ class MainScreen(Screen):
     class AgentsChanged(Message):
         pass
 
-    def __init__(self, config: CadreConfig, agents: list[AgentInfo], **kwargs) -> None:
+    def __init__(
+        self,
+        config: CadreConfig,
+        agents: list[AgentInfo],
+        active_agents: set[str] | None = None,
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
         self.config = config
         self.agents = agents
+        self.active_agents = active_agents or set()
         self._selected_agent: str | None = None
 
     def compose(self) -> ComposeResult:
@@ -126,7 +133,7 @@ class MainScreen(Screen):
                     yield Button("New Agent", variant="default", id="new-btn")
                     yield Button("Install Team", variant="default", id="team-btn")
 
-            yield AgentSidebar(agents=self.agents, id="sidebar")
+            yield AgentSidebar(agents=self.agents, active_agents=self.active_agents, id="sidebar")
 
         yield RichLog(highlight=True, markup=True, wrap=True, auto_scroll=True, id="log")
 
