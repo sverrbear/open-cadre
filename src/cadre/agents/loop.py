@@ -74,8 +74,7 @@ class AgentLoop:
                         yield AgentEvent(
                             type="status",
                             content=(
-                                f"Model {original_model} unavailable, "
-                                f"retrying with {fallback}"
+                                f"Model {original_model} unavailable, retrying with {fallback}"
                             ),
                         )
                         continue
