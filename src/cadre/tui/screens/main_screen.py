@@ -133,9 +133,7 @@ class MainScreen(Screen):
                     yield Button("New Agent", variant="default", id="new-btn")
                     yield Button("Install Team", variant="default", id="team-btn")
 
-            yield AgentSidebar(
-                agents=self.agents, active_agents=self.active_agents, id="sidebar"
-            )
+            yield AgentSidebar(agents=self.agents, active_agents=self.active_agents, id="sidebar")
 
         yield RichLog(highlight=True, markup=True, wrap=True, auto_scroll=True, id="log")
 
