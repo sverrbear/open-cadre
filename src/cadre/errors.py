@@ -56,6 +56,20 @@ def classify_llm_error(error: Exception) -> CadreError:
         or "timeout" in error_str
         or any(pat in error_str for pat in connection_patterns)
     ):
+        # InternalServerError + "connection error" often means the API key is
+        # invalid rather than a real network issue (litellm wraps the rejection).
+        if type_name == "InternalServerError":
+            provider = _extract_provider(error_str)
+            return CadreError(
+                category="connection",
+                message="Could not connect to the API",
+                hint=(
+                    f"This may mean your {provider} API key is invalid or expired. "
+                    f"Verify it at the provider dashboard, or run: "
+                    f"cadre keys set {provider} <new-key>"
+                ),
+                original=error,
+            )
         return CadreError(
             category="connection",
             message="Could not connect to the API",

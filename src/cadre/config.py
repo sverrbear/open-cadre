@@ -144,27 +144,51 @@ class CadreConfig(BaseModel):
         If model is "auto" or empty, auto-selects based on the agent's role:
         - lead: top-tier model from the first configured provider
         - all others: mid-tier model from the first configured provider
+
+        If the configured model's provider has no API key, falls back to
+        auto-selection so the app doesn't crash against a keyless provider.
         """
+        import os
+
+        from cadre.keys import PROVIDER_ENV_VARS
+
+        def _has_key_for(model: str) -> bool:
+            provider = model.split("/")[0] if "/" in model else ""
+            if not provider or provider == "ollama":
+                return True
+            env_var = PROVIDER_ENV_VARS.get(provider, f"{provider.upper()}_API_KEY")
+            return bool(os.environ.get(env_var))
+
         if self.team.mode == "solo":
             solo_config = self.team.agents.get("solo")
-            if solo_config and solo_config.model and solo_config.model != AUTO_MODEL:
+            if (
+                solo_config
+                and solo_config.model
+                and solo_config.model != AUTO_MODEL
+                and _has_key_for(solo_config.model)
+            ):
                 return solo_config.model
         agent_config = self.team.agents.get(agent_name)
-        if agent_config and agent_config.model and agent_config.model != AUTO_MODEL:
+        if (
+            agent_config
+            and agent_config.model
+            and agent_config.model != AUTO_MODEL
+            and _has_key_for(agent_config.model)
+        ):
             return agent_config.model
         # Auto mode: lead gets top-tier, everyone else mid-tier
         is_lead = agent_name == "lead"
         return self._resolve_auto_model(top_tier=is_lead)
 
     def _resolve_auto_model(self, top_tier: bool = False) -> str:
-        """Pick a model from the first configured provider."""
+        """Pick a model from the first provider that has an API key available."""
         import os
 
         from cadre.keys import PROVIDER_ENV_VARS
 
         tier = TOP_TIER_MODELS if top_tier else MID_TIER_MODELS
         for provider, env_var in PROVIDER_ENV_VARS.items():
-            if provider in self.providers or os.environ.get(env_var):
+            if os.environ.get(env_var):
                 return tier.get(provider, f"{provider}/default")
         return tier["anthropic"]
 
