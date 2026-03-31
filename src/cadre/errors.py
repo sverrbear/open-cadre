@@ -40,10 +40,21 @@ def classify_llm_error(error: Exception) -> CadreError:
             original=error,
         )
 
+    connection_patterns = (
+        "connection error",
+        "connection refused",
+        "connection reset",
+        "could not connect",
+        "connect timeout",
+        "name resolution",
+        "getaddrinfo",
+        "unreachable",
+        "connection aborted",
+    )
     if (
         type_name in ("APIConnectionError", "Timeout", "APITimeoutError")
         or "timeout" in error_str
-        or "connection" in error_str
+        or any(pat in error_str for pat in connection_patterns)
     ):
         return CadreError(
             category="connection",
@@ -79,7 +90,16 @@ def classify_llm_error(error: Exception) -> CadreError:
 
 def format_error_for_display(error: CadreError) -> str:
     """Format a CadreError for display in chat pane. Returns plain string."""
-    return f"{error.message}\n  Hint: {error.hint}"
+    lines = [error.message]
+    if error.original:
+        orig_type = type(error.original).__name__
+        orig_msg = str(error.original)
+        # Show a short excerpt of the original error for debugging
+        if len(orig_msg) > 120:
+            orig_msg = orig_msg[:120] + "..."
+        lines.append(f"  Detail: [{orig_type}] {orig_msg}")
+    lines.append(f"  Hint: {error.hint}")
+    return "\n".join(lines)
 
 
 def _extract_provider(error_str: str) -> str:
