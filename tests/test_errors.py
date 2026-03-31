@@ -99,3 +99,24 @@ def test_classify_auth_extracts_provider():
     err = AuthenticationError("anthropic authentication error")
     result = classify_llm_error(err)
     assert "anthropic" in result.hint
+
+
+def test_classify_model_error():
+    """ModelError (validated key, model-specific failure) gives actionable hint."""
+    from cadre.providers.litellm_provider import ModelError
+
+    original = Exception("InternalServerError: OpenAIException - Connection error")
+    err = ModelError("openai/o3", "openai", original)
+    result = classify_llm_error(err)
+    assert result.category == "model"
+    assert "o3" in result.message
+    assert "API key is valid" in result.hint
+    assert "fallback" in result.hint.lower()
+    assert result.original is original
+
+
+def test_classify_model_error_does_not_match_regular_errors():
+    """Regular exceptions should NOT be classified as ModelError."""
+    err = Exception("InternalServerError: Connection error")
+    result = classify_llm_error(err)
+    assert result.category != "model"

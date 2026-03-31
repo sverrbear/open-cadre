@@ -95,7 +95,7 @@ class ProjectContext(BaseModel):
 # Top-tier models per provider — used for lead agent in "auto" mode
 TOP_TIER_MODELS: dict[str, str] = {
     "anthropic": "anthropic/claude-opus-4-6",
-    "openai": "openai/o3",
+    "openai": "openai/gpt-4.1",
     "google": "google/gemini-2.5-pro",
     "deepseek": "deepseek/deepseek-reasoner",
     "ollama": "ollama/llama3.3-70b",

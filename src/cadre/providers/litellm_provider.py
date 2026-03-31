@@ -8,6 +8,17 @@ from typing import Any
 
 import litellm
 
+
+class ModelError(Exception):
+    """Error for a specific model when the provider key is known to be valid."""
+
+    def __init__(self, model: str, provider: str, original: Exception) -> None:
+        self.model = model
+        self.provider = provider
+        self.original = original
+        super().__init__(str(original))
+
+
 # Provider names in litellm.models_by_provider that map to our provider names
 _PROVIDER_ALIASES: dict[str, list[str]] = {
     "anthropic": ["anthropic"],
@@ -129,7 +140,7 @@ async def _ping_provider(provider: str, api_key: str, api_base: str | None = Non
     except litellm.AuthenticationError:
         raise
     except httpx.ConnectError:
-        raise
+        pass  # Don't block on validation endpoint issues; real call will surface them
     except Exception:
         pass
 
@@ -223,7 +234,14 @@ class LiteLLMProvider:
             await _ping_provider(provider_name, api_key, self.api_bases.get(provider_name))
             self._validated_providers.add(provider_name)
 
-        response = await litellm.acompletion(**kwargs)
+        try:
+            response = await litellm.acompletion(**kwargs)
+        except Exception as e:
+            # If the provider was already validated (key works for other models),
+            # wrap as ModelError so the agent loop can try a fallback model.
+            if provider_name in self._validated_providers:
+                raise ModelError(model, provider_name, e) from e
+            raise
 
         if stream:
             collected_content = ""

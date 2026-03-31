@@ -17,6 +17,24 @@ class CadreError:
 
 def classify_llm_error(error: Exception) -> CadreError:
     """Classify a LiteLLM/API exception into a user-friendly CadreError."""
+
+    # ModelError means the provider key was already validated — the problem is
+    # model-specific (wrong model name, insufficient account tier, etc.)
+    from cadre.providers.litellm_provider import ModelError
+
+    if isinstance(error, ModelError):
+        return CadreError(
+            category="model",
+            message=f"Model '{error.model}' is not accessible",
+            hint=(
+                f"Your {error.provider} API key is valid, but this model may not be "
+                f"available on your account or has compatibility issues. "
+                f"The system will try a fallback model automatically. "
+                f"You can also switch models manually with `cadre config`."
+            ),
+            original=error.original,
+        )
+
     error_str = str(error).lower()
 
     # Try litellm-specific exception types first
@@ -118,7 +136,7 @@ def format_error_for_display(error: CadreError) -> str:
 
 def _extract_provider(error_str: str) -> str:
     """Try to extract a provider name from an error string."""
-    for name in ("anthropic", "openai", "google", "mistral", "ollama"):
+    for name in ("anthropic", "openai", "google", "deepseek", "mistral", "ollama"):
         if name in error_str:
             return name
     return "your provider"
