@@ -43,6 +43,6 @@ class HeaderBar(Widget):
                 id="title",
             )
             yield Label(
-                "ctrl+b sidebar | ctrl+t tools | ctrl+p commands ",
+                "N new | I install team | L launch claude | ctrl+q quit ",
                 id="keybinds",
             )

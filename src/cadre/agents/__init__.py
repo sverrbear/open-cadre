@@ -1,5 +1,5 @@
-"""Agent layer — configurable AI agents with tool calling."""
+"""Agent management — CRUD for .claude/agents/*.md files."""
 
-from cadre.agents.base import Agent, AgentEvent
+from cadre.agents.manager import AgentInfo, list_agents, load_agent, save_agent
 
-__all__ = ["Agent", "AgentEvent"]
+__all__ = ["AgentInfo", "list_agents", "load_agent", "save_agent"]

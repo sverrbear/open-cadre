@@ -1,76 +1,49 @@
-"""Status sidebar widget — live agent status display."""
+"""Agent sidebar — shows installed agents with details."""
 
 from __future__ import annotations
 
 from rich.text import Text
 from textual.app import ComposeResult
-from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Label, Static
 
-STATUS_ICONS = {
-    "idle": ("● idle", "status-idle"),
-    "thinking": ("◉ thinking...", "status-thinking"),
-    "tool_calling": ("◉ calling tools...", "status-tool-calling"),
-    "waiting_for_approval": ("⏸ waiting...", "status-waiting"),
-    "error": ("✗ error", "status-error"),
-}
+from cadre.agents.manager import AgentInfo
 
 
-class AgentCard(Static):
-    """A single agent's status card."""
+class AgentSidebarCard(Static):
+    """A compact agent info card for the sidebar."""
 
-    status = reactive("idle")
-
-    def __init__(self, agent_name: str, model: str, **kwargs) -> None:
+    def __init__(self, agent: AgentInfo, **kwargs) -> None:
         super().__init__(**kwargs)
-        self.agent_name = agent_name
-        self.model = model
+        self.agent = agent
         self.add_class("agent-card")
 
     def render(self) -> Text:
-        icon, _css_class = STATUS_ICONS.get(self.status, ("? unknown", "status-idle"))
         text = Text()
-        text.append(f"{self.agent_name}", style="bold #89b4fa")
-        text.append(f"\n{self.model[:24]}", style="#6c7086")
-        text.append(f"\n{icon}")
+        text.append(f"{self.agent.name}", style="bold #89b4fa")
+        model = self.agent.model or "default"
+        text.append(f"\n{model}", style="#6c7086")
+        tools_str = ", ".join(self.agent.tools[:3])
+        if len(self.agent.tools) > 3:
+            tools_str += "..."
+        text.append(f"\n{tools_str}", style="#585b70")
         return text
 
-    def watch_status(self, new_status: str) -> None:
-        """Update CSS classes when status changes."""
-        for cls in (
-            "status-idle",
-            "status-thinking",
-            "status-tool-calling",
-            "status-waiting",
-            "status-error",
-        ):
-            self.remove_class(cls)
-        _, css_class = STATUS_ICONS.get(new_status, ("", "status-idle"))
-        self.add_class(css_class)
 
+class AgentSidebar(Widget):
+    """Sidebar showing all installed agents."""
 
-class StatusSidebar(Widget):
-    """Sidebar showing live status for all agents."""
-
-    def __init__(self, agents: dict[str, dict], **kwargs) -> None:
-        """agents: dict mapping name -> {"role": str, "model": str}"""
+    def __init__(self, agents: list[AgentInfo], **kwargs) -> None:
         super().__init__(**kwargs)
         self.agents = agents
 
     def compose(self) -> ComposeResult:
-        yield Label("[bold]Team Status[/bold]\n", id="sidebar-title")
-        for name, info in self.agents.items():
-            yield AgentCard(
-                agent_name=name,
-                model=info.get("model", "unknown"),
-                id=f"agent-card-{name}",
-            )
-
-    def update_agent_status(self, agent_name: str, status: str) -> None:
-        """Update a specific agent's status."""
-        try:
-            card = self.query_one(f"#agent-card-{agent_name}", AgentCard)
-            card.status = status
-        except Exception:
-            pass
+        yield Label("[bold]Team[/bold]\n", id="sidebar-title")
+        if self.agents:
+            for agent in self.agents:
+                yield AgentSidebarCard(
+                    agent=agent,
+                    id=f"sidebar-card-{agent.name}",
+                )
+        else:
+            yield Static("[dim]No agents[/dim]")
