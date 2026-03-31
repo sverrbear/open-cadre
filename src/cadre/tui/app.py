@@ -250,6 +250,12 @@ class CadreTUI(App):
                 agent_pane.append_error(event.content)
             if team_pane and agent_name != "team":
                 team_pane.append_error(event.content)
+            # Show API key status alongside API errors to help debugging
+            if team_pane and any(
+                kw in event.content.lower()
+                for kw in ("connect", "authentication", "api key", "api_key")
+            ):
+                self._show_keys()
 
     def _handle_slash_command(self, command: str) -> None:
         """Handle slash commands within the TUI."""
