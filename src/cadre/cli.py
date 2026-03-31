@@ -256,12 +256,8 @@ def models_list():
         console.print("\n  [yellow]No providers configured.[/yellow]")
         console.print("  Run [bold]cadre init[/bold] to set up API keys.\n")
     else:
-        console.print(
-            "\n  [dim]Any LiteLLM-compatible model string is also accepted.[/dim]"
-        )
-        console.print(
-            "  [dim]See https://docs.litellm.ai/docs/providers for all options.[/dim]\n"
-        )
+        console.print("\n  [dim]Any LiteLLM-compatible model string is also accepted.[/dim]")
+        console.print("  [dim]See https://docs.litellm.ai/docs/providers for all options.[/dim]\n")
 
 
 @models.command(name="benchmarks")
