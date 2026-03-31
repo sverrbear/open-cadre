@@ -91,6 +91,11 @@ class MainScreen(Screen):
             self.agent = agent
             self.agent_info = agent_info
 
+    class LaunchTeam(Message):
+        def __init__(self, team_name: str = "full") -> None:
+            super().__init__()
+            self.team_name = team_name
+
     class AgentsChanged(Message):
         pass
 
@@ -130,6 +135,7 @@ class MainScreen(Screen):
 
                 with Horizontal(id="action-bar"):
                     yield Button("Launch Claude", variant="primary", id="launch-btn")
+                    yield Button("Team Chat", variant="success", id="team-chat-btn")
                     yield Button("New Agent", variant="default", id="new-btn")
                     yield Button("Install Team", variant="default", id="team-btn")
 
@@ -169,6 +175,8 @@ class MainScreen(Screen):
         if event.button.id == "launch-btn":
             info = self._get_selected_agent_info()
             self.post_message(self.LaunchClaude(agent=self._selected_agent or "", agent_info=info))
+        elif event.button.id == "team-chat-btn":
+            self.post_message(self.LaunchTeam(team_name="full"))
         elif event.button.id == "new-btn":
             self.action_new_agent()
         elif event.button.id == "team-btn":
