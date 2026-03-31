@@ -454,6 +454,7 @@ class ChatScreen(Screen):
         """Handle Enter key in the chat input."""
         quick_replies = self.query_one("#quick-replies", Vertical)
 
+
         if quick_replies.display and self._quick_reply_index >= 0:
             buttons = list(quick_replies.query(".quick-reply-btn"))
             if 0 <= self._quick_reply_index < len(buttons):
