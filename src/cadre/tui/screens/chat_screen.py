@@ -25,7 +25,7 @@ class ChatInput(TextArea):
         """Posted when the user presses Enter (without Shift)."""
 
     def _on_key(self, event) -> None:
-        if event.key == "enter" and not event.shift:
+        if event.key == "enter":
             event.prevent_default()
             event.stop()
             self.post_message(self.Submitted())
