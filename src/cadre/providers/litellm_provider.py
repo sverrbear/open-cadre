@@ -52,7 +52,9 @@ class LiteLLMProvider:
                 setattr(litellm, attr, key)
             # Always set in os.environ so LiteLLM's generic lookup works
             env_var = env_var_map.get(provider, f"{provider.upper()}_API_KEY")
-            os.environ.setdefault(env_var, key)
+            # Use direct assignment to ensure the key takes effect even if
+            # an empty or stale value was previously in the environment
+            os.environ[env_var] = key
 
     async def complete(
         self,
@@ -70,8 +72,11 @@ class LiteLLMProvider:
         if tools:
             kwargs["tools"] = tools
 
-        # Set custom API base for providers like Ollama
+        # Resolve provider-specific settings from the model string
         provider_name = model.split("/")[0] if "/" in model else ""
+        api_key = self.api_keys.get(provider_name)
+        if api_key:
+            kwargs["api_key"] = api_key
         if provider_name in self.api_bases:
             kwargs["api_base"] = self.api_bases[provider_name]
 
