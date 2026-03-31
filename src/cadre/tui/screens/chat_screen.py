@@ -17,6 +17,21 @@ from textual.message import Message
 from textual.screen import Screen
 from textual.widgets import Button, Label, RichLog, TextArea
 
+
+class ChatInput(TextArea):
+    """TextArea that submits on Enter and inserts newline on Shift+Enter."""
+
+    class Submitted(Message):
+        """Posted when the user presses Enter (without Shift)."""
+
+    def _on_key(self, event) -> None:
+        if event.key == "enter" and not event.shift:
+            event.prevent_default()
+            event.stop()
+            self.post_message(self.Submitted())
+            return
+        super()._on_key(event)
+
 from cadre.tui.screens.chat_settings import ChatSessionSettings
 
 if TYPE_CHECKING:
@@ -268,7 +283,7 @@ class ChatScreen(Screen):
             with Vertical(id="command-palette"):
                 pass  # populated dynamically
             with Horizontal(id="chat-input-bar"):
-                yield TextArea(
+                yield ChatInput(
                     id="chat-input",
                 )
                 yield Button("Send", variant="primary", id="send-btn")
@@ -292,7 +307,7 @@ class ChatScreen(Screen):
             )
 
         # Configure the TextArea for chat input
-        text_area = self.query_one("#chat-input", TextArea)
+        text_area = self.query_one("#chat-input", ChatInput)
         text_area.show_line_numbers = False
         text_area.tab_behavior = "focus"
         text_area.focus()
@@ -309,8 +324,26 @@ class ChatScreen(Screen):
             # Quick reply button clicked
             self._send_quick_reply(event.button.data)
 
+    def on_chat_input_submitted(self, event: ChatInput.Submitted) -> None:
+        """Handle Enter key in the chat input."""
+        quick_replies = self.query_one("#quick-replies", Vertical)
+
+        # If quick replies are visible and one is selected, use it
+        if quick_replies.display and self._quick_reply_index >= 0:
+            buttons = list(quick_replies.query(".quick-reply-btn"))
+            if 0 <= self._quick_reply_index < len(buttons):
+                btn = buttons[self._quick_reply_index]
+                if hasattr(btn, "data") and btn.data:
+                    self._send_quick_reply(btn.data)
+                else:
+                    self._hide_quick_replies()
+                    self.query_one("#chat-input", ChatInput).focus()
+            return
+
+        self._submit_input()
+
     def on_key(self, event) -> None:
-        """Handle keyboard events for TextArea submit and quick-reply navigation."""
+        """Handle keyboard events for quick-reply navigation."""
         quick_replies = self.query_one("#quick-replies", Vertical)
 
         # Handle quick-reply navigation when visible
@@ -330,25 +363,6 @@ class ChatScreen(Screen):
                     self._quick_reply_index = min(len(buttons) - 1, self._quick_reply_index + 1)
                     self._highlight_quick_reply(buttons)
                 return
-            elif event.key == "enter" and self._quick_reply_index >= 0:
-                event.prevent_default()
-                event.stop()
-                if 0 <= self._quick_reply_index < len(buttons):
-                    btn = buttons[self._quick_reply_index]
-                    if hasattr(btn, "data") and btn.data:
-                        self._send_quick_reply(btn.data)
-                    else:
-                        # "Type your own" option
-                        self._hide_quick_replies()
-                        self.query_one("#chat-input", TextArea).focus()
-                return
-
-        # Handle Enter to submit (without shift) in TextArea
-        text_area = self.query_one("#chat-input", TextArea)
-        if text_area.has_focus and event.key == "enter" and not event.shift:
-            event.prevent_default()
-            event.stop()
-            self._submit_input()
 
     def _highlight_quick_reply(self, buttons: list) -> None:
         """Update visual highlighting of quick-reply buttons."""
@@ -441,7 +455,7 @@ class ChatScreen(Screen):
         summary.update("  ".join(parts) if parts else "")
 
     def _submit_input(self) -> None:
-        text_area = self.query_one("#chat-input", TextArea)
+        text_area = self.query_one("#chat-input", ChatInput)
         message = text_area.text.strip()
         if not message or self._is_streaming:
             return
@@ -546,7 +560,7 @@ class ChatScreen(Screen):
 
     def _set_streaming(self, streaming: bool) -> None:
         self._is_streaming = streaming
-        text_area = self.query_one("#chat-input", TextArea)
+        text_area = self.query_one("#chat-input", ChatInput)
         send_btn = self.query_one("#send-btn", Button)
         stop_btn = self.query_one("#stop-btn", Button)
 
@@ -845,7 +859,7 @@ class ChatScreen(Screen):
         if widget and hasattr(widget, "data") and isinstance(getattr(widget, "data", None), str):
             cmd_name = widget.data
             if cmd_name.startswith("/"):
-                text_area = self.query_one("#chat-input", TextArea)
+                text_area = self.query_one("#chat-input", ChatInput)
                 text_area.clear()
                 text_area.insert(cmd_name)
                 self._hide_command_palette()
