@@ -82,7 +82,12 @@ class AgentLoop:
                 from cadre.errors import classify_llm_error, format_error_for_display
 
                 classified = classify_llm_error(e)
-                self.agent.status = AgentStatus.ERROR
+                # Remove the orphaned user message so history stays valid
+                # (no two consecutive user messages on next attempt).
+                if self.agent.history and self.agent.history[-1].get("role") == "user":
+                    self.agent.history.pop()
+                # Reset to IDLE so the agent can accept new messages.
+                self.agent.status = AgentStatus.IDLE
                 yield AgentEvent(type="error", content=format_error_for_display(classified))
                 return
 

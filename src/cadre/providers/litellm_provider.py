@@ -238,9 +238,25 @@ class LiteLLMProvider:
             response = await litellm.acompletion(**kwargs)
         except Exception as e:
             # If the provider was already validated (key works for other models),
-            # wrap as ModelError so the agent loop can try a fallback model.
+            # wrap model-specific failures as ModelError so the agent loop can
+            # try a fallback.  Connection/auth/rate errors are NOT model-specific
+            # — changing models won't fix them — so let them propagate as-is.
             if provider_name in self._validated_providers:
-                raise ModelError(model, provider_name, e) from e
+                etype = type(e).__name__
+                emsg = str(e).lower()
+                is_conn = (
+                    etype
+                    in (
+                        "APIConnectionError",
+                        "Timeout",
+                        "APITimeoutError",
+                    )
+                    or "connection" in emsg
+                )
+                is_auth = etype == "AuthenticationError" or "authentication" in emsg
+                is_rate = etype == "RateLimitError" or "rate limit" in emsg
+                if not (is_conn or is_auth or is_rate):
+                    raise ModelError(model, provider_name, e) from e
             raise
 
         if stream:
