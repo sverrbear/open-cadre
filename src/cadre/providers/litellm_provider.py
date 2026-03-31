@@ -8,6 +8,78 @@ from typing import Any
 
 import litellm
 
+# Provider names in litellm.models_by_provider that map to our provider names
+_PROVIDER_ALIASES: dict[str, list[str]] = {
+    "anthropic": ["anthropic"],
+    "openai": ["openai"],
+    "google": ["gemini"],
+    "deepseek": ["deepseek"],
+    "ollama": ["ollama"],
+}
+
+# Model name substrings to exclude (non-chat models: images, audio, TTS, embeddings, etc.)
+_EXCLUDED_PATTERNS = (
+    "dall-e",
+    "gpt-image",
+    "tts",
+    "whisper",
+    "embedding",
+    "realtime",
+    "transcribe",
+    "audio",
+    "image-generation",
+    "moderation",
+    "video",
+    "search-preview",
+    "deep-research",
+    "babbage",
+    "davinci",
+    "ft:",
+)
+
+
+def list_provider_models(provider: str) -> list[str]:
+    """Return chat-capable model IDs for a provider from litellm's catalog.
+
+    Models are returned in the ``provider/model-name`` format used by litellm,
+    filtered to only include chat/completion models (no image, audio, TTS, or
+    embedding models).
+    """
+    aliases = _PROVIDER_ALIASES.get(provider, [provider])
+    raw_models: set[str] = set()
+    for alias in aliases:
+        raw_models.update(litellm.models_by_provider.get(alias, set()))
+
+    # Filter to chat models only, deduplicate by normalized ID
+    seen: set[str] = set()
+    chat_models: list[str] = []
+    for model_name in sorted(raw_models):
+        lower = model_name.lower()
+        if any(pat in lower for pat in _EXCLUDED_PATTERNS):
+            continue
+
+        # Ensure model has provider/ prefix — use litellm's prefix (e.g. gemini/)
+        # rather than our internal name (google/) since litellm expects it
+        model_id = model_name if "/" in model_name else f"{provider}/{model_name}"
+
+        # Deduplicate (e.g. "deepseek-chat" and "deepseek/deepseek-chat")
+        if model_id in seen:
+            continue
+        seen.add(model_id)
+
+        # Check mode via litellm metadata — only include chat models
+        try:
+            info = litellm.get_model_info(model_id)
+            if info.get("mode") not in ("chat", "completion"):
+                continue
+        except Exception:
+            # Model not in litellm's price map — skip unless it looks like a chat model
+            continue
+
+        chat_models.append(model_id)
+
+    return chat_models
+
 
 @dataclass
 class UsageStats:
