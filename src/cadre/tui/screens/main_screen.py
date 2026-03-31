@@ -82,7 +82,7 @@ class MainScreen(Screen):
         Binding("n", "new_agent", "New agent", show=True),
         Binding("i", "install_team", "Install team", show=True),
         Binding("l", "launch_claude", "Launch Claude", show=True),
-        Binding("d", "delete_agent", "Delete", show=False),
+        Binding("d", "delete_agent", "Delete", show=True),
     ]
 
     class LaunchClaude(Message):
@@ -148,14 +148,14 @@ class MainScreen(Screen):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "launch-btn":
-            self.post_message(self.LaunchClaude())
+            self.post_message(self.LaunchClaude(agent=self._selected_agent or ""))
         elif event.button.id == "new-btn":
             self.action_new_agent()
         elif event.button.id == "team-btn":
             self.action_install_team()
 
     def action_launch_claude(self) -> None:
-        self.post_message(self.LaunchClaude())
+        self.post_message(self.LaunchClaude(agent=self._selected_agent or ""))
 
     def action_new_agent(self) -> None:
         from cadre.tui.screens.agent_editor import AgentEditorScreen
@@ -175,11 +175,24 @@ class MainScreen(Screen):
 
     def action_delete_agent(self) -> None:
         if self._selected_agent:
+            from cadre.tui.screens.confirm_dialog import ConfirmDialog
+
+            self.app.push_screen(
+                ConfirmDialog(
+                    title="Delete Agent",
+                    message=f"Delete agent '{self._selected_agent}'? This cannot be undone.",
+                ),
+                callback=self._on_delete_confirmed,
+            )
+
+    def _on_delete_confirmed(self, result: bool | None) -> None:
+        if result and self._selected_agent:
             from cadre.agents.manager import delete_agent
 
             delete_agent(self._selected_agent)
             log = self.get_log()
             log.write(f"[red]Deleted agent: {self._selected_agent}[/red]\n")
+            self._selected_agent = None
             self.post_message(self.AgentsChanged())
 
     def _edit_agent(self, name: str) -> None:

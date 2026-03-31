@@ -10,7 +10,7 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Select, TextArea
 
-from cadre.agents.manager import AgentInfo, save_agent
+from cadre.agents.manager import AgentInfo, delete_agent, save_agent
 
 MODELS = [
     ("Default (inherit)", ""),
@@ -170,6 +170,8 @@ class AgentEditorScreen(ModalScreen[bool | None]):
             )
 
             with Horizontal(id="button-row"):
+                if not self.is_new:
+                    yield Button("Delete", variant="error", id="delete-btn")
                 yield Button("Cancel", variant="default", id="cancel-btn")
                 yield Button("Save", variant="primary", id="save-btn")
 
@@ -178,6 +180,24 @@ class AgentEditorScreen(ModalScreen[bool | None]):
             self.dismiss(None)
         elif event.button.id == "save-btn":
             self._save()
+        elif event.button.id == "delete-btn":
+            self._confirm_delete()
+
+    def _confirm_delete(self) -> None:
+        from cadre.tui.screens.confirm_dialog import ConfirmDialog
+
+        self.app.push_screen(
+            ConfirmDialog(
+                title="Delete Agent",
+                message=f"Delete agent '{self.agent.name}'? This cannot be undone.",
+            ),
+            callback=self._on_delete_confirmed,
+        )
+
+    def _on_delete_confirmed(self, result: bool | None) -> None:
+        if result and self.agent:
+            delete_agent(self.agent.name)
+            self.dismiss(True)
 
     def action_cancel(self) -> None:
         self.dismiss(None)
