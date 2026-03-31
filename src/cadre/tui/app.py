@@ -10,7 +10,7 @@ from textual.binding import Binding
 
 from cadre.agents.manager import check_claude_auth, check_claude_cli, list_agents
 from cadre.config import CadreConfig
-from cadre.tui.screens.main_screen import MainScreen
+from cadre.tui.screens.chat_screen import ChatScreen
 from cadre.tui.themes.registry import ThemeRegistry
 
 
@@ -20,7 +20,6 @@ class CadreTUI(App):
     TITLE = "OpenCadre"
 
     BINDINGS: ClassVar[list[Binding]] = [
-        Binding("ctrl+b", "toggle_sidebar", "Toggle sidebar", show=True),
         Binding("ctrl+p", "open_settings", "Settings", show=True),
         Binding("escape", "focus_input", "Focus input", show=False),
         Binding("ctrl+q", "quit", "Quit", show=True),
@@ -29,7 +28,7 @@ class CadreTUI(App):
     def __init__(self, config: CadreConfig) -> None:
         self.config = config
         self.theme_registry = ThemeRegistry(project_path=Path.cwd())
-        self.main_screen: MainScreen | None = None
+        self.main_screen = None
         self._active_agents: set[str] = set()
 
         theme_name = config.ui.theme
@@ -42,65 +41,43 @@ class CadreTUI(App):
         """Dynamic CSS path based on theme."""
         return self._css_path
 
-    def _query_main(self, widget_type: type):
-        """Safely query a widget from the MainScreen."""
-        if self.main_screen is None:
-            return None
-        try:
-            return self.main_screen.query_one(widget_type)
-        except Exception:
-            return None
-
     def on_mount(self) -> None:
-        """Push the main screen."""
+        """Push the chat screen as the default view."""
         agents = list_agents()
-        self.main_screen = MainScreen(
-            config=self.config, agents=agents, active_agents=self._active_agents
-        )
-        self.push_screen(self.main_screen)
+        show_welcome = len(agents) == 0
 
-        # Check claude CLI
+        # Default to lead agent if it exists
+        lead = next((a for a in agents if a.name == "lead"), None)
+        agent_name = lead.name if lead else ""
+        agent_info = lead if lead else None
+
+        self.push_screen(
+            ChatScreen(
+                agent=agent_name,
+                agent_info=agent_info,
+                show_welcome=show_welcome,
+            )
+        )
+
         self.call_after_refresh(self._check_claude)
 
-        # Show init hint if no agents
-        if not agents:
-            self.call_after_refresh(self._show_init_hint)
-
     def _check_claude(self) -> None:
-        """Check if claude CLI is available."""
+        """Check if claude CLI is available and log to chat."""
         available, version_or_error = check_claude_cli()
-        log = self._get_log()
-        if not log:
-            return
-        if available:
-            log.write(f"[green]Claude Code[/green] {version_or_error}\n")
-        else:
-            log.write(
-                f"[bold red]Claude Code not found:[/bold red] {version_or_error}\n"
-                "[dim]Install: npm install -g @anthropic-ai/claude-code[/dim]\n"
-            )
+        if not available:
+            try:
+                from textual.widgets import RichLog
 
-    def _show_init_hint(self) -> None:
-        """Show hint when no agents are configured."""
-        log = self._get_log()
-        if log:
-            log.write(
-                "[bold yellow]No agents configured.[/bold yellow]\n"
-                "Press [bold]I[/bold] to install a team preset, "
-                "or [bold]N[/bold] to create a new agent.\n"
-            )
+                log = self.screen.query_one("#chat-log", RichLog)
+                log.write(
+                    f"[bold red]Claude Code not found:[/bold red] {version_or_error}\n"
+                    "[dim]Install: npm install -g @anthropic-ai/claude-code[/dim]\n"
+                )
+            except Exception:
+                pass
 
-    def _get_log(self):
-        """Get the main screen's RichLog."""
-        if self.main_screen is None:
-            return None
-        try:
-            return self.main_screen.get_log()
-        except Exception:
-            return None
-
-    def on_main_screen_launch_claude(self, event: MainScreen.LaunchClaude) -> None:
-        """Handle launch claude request — check auth, then open chat screen."""
+    def on_main_screen_launch_claude(self, event) -> None:
+        """Handle launch claude request from dashboard — check auth, then open chat."""
         auth = check_claude_auth()
         if not auth.logged_in:
             from cadre.tui.screens.auth_dialog import AuthRequiredDialog
@@ -108,46 +85,37 @@ class CadreTUI(App):
             self.push_screen(AuthRequiredDialog(error=auth.error))
             return
 
-        from cadre.tui.screens.chat_screen import ChatScreen
-
         if event.agent:
             self._active_agents.add(event.agent)
-            self._refresh_main_screen()
         self.push_screen(ChatScreen(agent=event.agent, agent_info=event.agent_info))
 
     def on_chat_screen_go_back(self, _event) -> None:
         """Handle chat screen back navigation."""
-        # Get agent name from the chat screen before popping
         screen = self.screen
         if hasattr(screen, "agent") and screen.agent:
             self._active_agents.discard(screen.agent)
         self.pop_screen()
-        self._refresh_main_screen()
 
-    def on_main_screen_agents_changed(self, _event: MainScreen.AgentsChanged) -> None:
+    def on_chat_screen_open_dashboard(self, _event) -> None:
+        """Handle dashboard request from chat — push the main screen."""
+        from cadre.tui.screens.main_screen import MainScreen
+
+        agents = list_agents()
+        self.main_screen = MainScreen(
+            config=self.config, agents=agents, active_agents=self._active_agents
+        )
+        self.push_screen(self.main_screen)
+
+    def on_main_screen_agents_changed(self, _event) -> None:
         """Refresh the main screen when agents change."""
+        from cadre.tui.screens.main_screen import MainScreen
+
         agents = list_agents()
         self.pop_screen()
         self.main_screen = MainScreen(
             config=self.config, agents=agents, active_agents=self._active_agents
         )
         self.push_screen(self.main_screen)
-
-    def _refresh_main_screen(self) -> None:
-        """Rebuild the main screen to reflect updated agent status."""
-        if self.main_screen is None:
-            return
-        agents = list_agents()
-        self.pop_screen()
-        self.main_screen = MainScreen(
-            config=self.config, agents=agents, active_agents=self._active_agents
-        )
-        self.push_screen(self.main_screen)
-
-    def action_toggle_sidebar(self) -> None:
-        """Toggle the sidebar visibility."""
-        if self.main_screen:
-            self.main_screen.toggle_sidebar()
 
     def action_open_settings(self) -> None:
         """Open settings screen."""
