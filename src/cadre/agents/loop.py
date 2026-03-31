@@ -18,11 +18,26 @@ class AgentLoop:
         self.provider = provider
         self.max_iterations = 25
 
+    @staticmethod
+    def _get_fallback_model(model: str) -> str | None:
+        """Return the mid-tier model for the same provider, or None."""
+        from cadre.config import MID_TIER_MODELS
+
+        provider = model.split("/")[0] if "/" in model else None
+        if not provider:
+            return None
+        mid = MID_TIER_MODELS.get(provider)
+        if mid and mid != model:
+            return mid
+        return None
+
     async def run(self, user_message: str) -> AsyncIterator[AgentEvent]:
         """Execute the agent loop: send message, handle tool calls, repeat until done."""
         self.agent.add_message("user", user_message)
         self.agent.status = AgentStatus.THINKING
         yield AgentEvent(type="status", content="thinking")
+
+        used_fallback = False
 
         for _iteration in range(self.max_iterations):
             # Build messages
@@ -46,6 +61,25 @@ class AgentLoop:
                     elif chunk["type"] == "message_complete":
                         assistant_msg = chunk["message"]
             except Exception as e:
+                from cadre.providers.litellm_provider import ModelError
+
+                # If the model specifically failed and we haven't retried yet,
+                # fall back to the mid-tier model for the same provider.
+                if isinstance(e, ModelError) and not used_fallback:
+                    fallback = self._get_fallback_model(self.agent.model)
+                    if fallback:
+                        used_fallback = True
+                        original_model = self.agent.model
+                        self.agent.model = fallback
+                        yield AgentEvent(
+                            type="status",
+                            content=(
+                                f"Model {original_model} unavailable, "
+                                f"retrying with {fallback}"
+                            ),
+                        )
+                        continue
+
                 from cadre.errors import classify_llm_error, format_error_for_display
 
                 classified = classify_llm_error(e)
