@@ -24,7 +24,7 @@ from cadre.config import (
     WorkflowsConfig,
 )
 from cadre.detect import detect_project
-from cadre.keys import ENV_FILE, PROVIDER_ENV_VARS, generate_env_file, key_set
+from cadre.keys import ENV_FILE, PROVIDER_ENV_VARS, generate_env_file
 
 
 class InitScreen(Screen[CadreConfig | None]):
@@ -209,9 +209,10 @@ class InitScreen(Screen[CadreConfig | None]):
             if not checkbox.value:
                 continue
 
-            # Check if key is already in environment
+            # Check if key is already in environment — persist it to cadre.env
             env_value = os.environ.get(env_var)
             if env_value:
+                entered_keys[provider] = env_value
                 providers[provider] = ProviderConfig(api_key=f"${{{env_var}}}")
                 continue
 
@@ -221,7 +222,6 @@ class InitScreen(Screen[CadreConfig | None]):
                 manual_key = key_input.value.strip()
                 if manual_key:
                     entered_keys[provider] = manual_key
-                    key_set(self.base_path, provider=provider, value=manual_key)
                     providers[provider] = ProviderConfig(api_key=f"${{{env_var}}}")
             except Exception:
                 pass
@@ -251,6 +251,10 @@ class InitScreen(Screen[CadreConfig | None]):
 
         config.save(self.base_path)
         generate_env_file(self.base_path, keys=entered_keys)
+        # Load keys into os.environ for immediate use in this session
+        for provider, value in entered_keys.items():
+            env_var = PROVIDER_ENV_VARS.get(provider, f"{provider.upper()}_API_KEY")
+            os.environ[env_var] = value
         _ensure_gitignored(self.base_path)
 
         self.dismiss(config)
