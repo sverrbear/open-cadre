@@ -86,9 +86,10 @@ class MainScreen(Screen):
     ]
 
     class LaunchClaude(Message):
-        def __init__(self, agent: str = "") -> None:
+        def __init__(self, agent: str = "", agent_info: AgentInfo | None = None) -> None:
             super().__init__()
             self.agent = agent
+            self.agent_info = agent_info
 
     class AgentsChanged(Message):
         pass
@@ -146,16 +147,31 @@ class MainScreen(Screen):
         self._selected_agent = event.agent_name
         self._edit_agent(event.agent_name)
 
+    def _get_selected_agent_info(self) -> AgentInfo | None:
+        """Look up AgentInfo for the currently selected agent."""
+        if not self._selected_agent:
+            return None
+        for agent in self.agents:
+            if agent.name == self._selected_agent:
+                return agent
+        return None
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "launch-btn":
-            self.post_message(self.LaunchClaude(agent=self._selected_agent or ""))
+            info = self._get_selected_agent_info()
+            self.post_message(
+                self.LaunchClaude(agent=self._selected_agent or "", agent_info=info)
+            )
         elif event.button.id == "new-btn":
             self.action_new_agent()
         elif event.button.id == "team-btn":
             self.action_install_team()
 
     def action_launch_claude(self) -> None:
-        self.post_message(self.LaunchClaude(agent=self._selected_agent or ""))
+        info = self._get_selected_agent_info()
+        self.post_message(
+            self.LaunchClaude(agent=self._selected_agent or "", agent_info=info)
+        )
 
     def action_new_agent(self) -> None:
         from cadre.tui.screens.agent_editor import AgentEditorScreen
