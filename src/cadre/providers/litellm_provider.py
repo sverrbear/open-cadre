@@ -147,6 +147,26 @@ class LiteLLMProvider:
         # Resolve provider-specific settings from the model string
         provider_name = model.split("/")[0] if "/" in model else ""
         api_key = self.api_keys.get(provider_name)
+
+        # Pre-flight check: fail fast with a clear message if the API key is missing
+        if not api_key and provider_name and provider_name != "ollama":
+            import os
+
+            env_var = f"{provider_name.upper()}_API_KEY"
+            env_key = os.environ.get(env_var)
+            if env_key:
+                api_key = env_key
+            else:
+                raise litellm.AuthenticationError(
+                    message=(
+                        f"No API key configured for '{provider_name}'. "
+                        f"Set {env_var} in your environment or run: "
+                        f"cadre keys set {provider_name} <your-key>"
+                    ),
+                    model=model,
+                    llm_provider=provider_name,
+                )
+
         if api_key:
             kwargs["api_key"] = api_key
         if provider_name in self.api_bases:
