@@ -205,3 +205,48 @@ def check_claude_cli() -> tuple[bool, str]:
         return True, version
     except Exception as e:
         return False, str(e)
+
+
+@dataclass
+class AuthStatus:
+    """Result of checking Claude Code authentication."""
+
+    logged_in: bool = False
+    email: str = ""
+    org_name: str = ""
+    auth_method: str = ""
+    error: str = ""
+
+
+def check_claude_auth() -> AuthStatus:
+    """Check if user is authenticated with Claude Code."""
+    import json
+    import subprocess
+
+    claude_path = shutil.which("claude")
+    if not claude_path:
+        return AuthStatus(error="Claude Code CLI not found on PATH")
+
+    try:
+        result = subprocess.run(
+            ["claude", "auth", "status", "--output-format", "json"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            stderr = result.stderr.strip()
+            return AuthStatus(error=stderr or "Auth check failed")
+
+        data = json.loads(result.stdout)
+        return AuthStatus(
+            logged_in=data.get("loggedIn", False),
+            email=data.get("email", ""),
+            org_name=data.get("orgName", ""),
+            auth_method=data.get("authMethod", ""),
+        )
+    except json.JSONDecodeError:
+        # Some versions may not support JSON output — try parsing text
+        return AuthStatus(error="Could not parse auth status")
+    except Exception as e:
+        return AuthStatus(error=str(e))

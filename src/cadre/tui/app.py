@@ -8,7 +8,7 @@ from typing import ClassVar
 from textual.app import App
 from textual.binding import Binding
 
-from cadre.agents.manager import check_claude_cli, list_agents
+from cadre.agents.manager import check_claude_auth, check_claude_cli, list_agents
 from cadre.config import CadreConfig
 from cadre.tui.screens.main_screen import MainScreen
 from cadre.tui.themes.registry import ThemeRegistry
@@ -97,10 +97,17 @@ class CadreTUI(App):
             return None
 
     def on_main_screen_launch_claude(self, event: MainScreen.LaunchClaude) -> None:
-        """Handle launch claude request — open chat screen."""
+        """Handle launch claude request — check auth, then open chat screen."""
+        auth = check_claude_auth()
+        if not auth.logged_in:
+            from cadre.tui.screens.auth_dialog import AuthRequiredDialog
+
+            self.push_screen(AuthRequiredDialog(error=auth.error))
+            return
+
         from cadre.tui.screens.chat_screen import ChatScreen
 
-        self.push_screen(ChatScreen(agent=event.agent))
+        self.push_screen(ChatScreen(agent=event.agent, agent_info=event.agent_info))
 
     def on_chat_screen_go_back(self, _event) -> None:
         """Handle chat screen back navigation."""
@@ -149,12 +156,13 @@ class CadreTUI(App):
             result.save()
 
     def action_focus_input(self) -> None:
-        """Focus the input bar."""
-        from cadre.tui.widgets.input_bar import InputBar
+        """Focus the input bar on the active screen."""
+        import contextlib
 
-        input_bar = self._query_main(InputBar)
-        if input_bar is not None:
-            input_bar.focus_input()
+        from textual.widgets import Input
+
+        with contextlib.suppress(Exception):
+            self.screen.query_one("#chat-input", Input).focus()
 
     def on_unmount(self) -> None:
         """Persist config on exit."""
