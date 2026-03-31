@@ -16,10 +16,10 @@ if TYPE_CHECKING:
     from cadre.config import CadreConfig
 
 
-def create_engineer(config: CadreConfig) -> Agent:
+def create_analytics_engineer(config: CadreConfig) -> Agent:
     """Create the Analytics Engineer agent."""
     project = config.project
-    model = config.get_model("engineer")
+    model = config.get_model("analytics_engineer")
 
     shell_tool = ShellTool(
         allow_patterns=config.tools.shell_allow,
@@ -52,7 +52,7 @@ For every model you create or modify:
 ## Project Context
 - Project: {project.name}
 - Warehouse: {project.warehouse}
-{build_extra_context(config, "engineer")}
+{build_extra_context(config, "analytics_engineer")}
 ## Team Communication Protocol
 You have a `message_agent` tool to communicate with teammates.
 - **Report to the lead** before starting work: briefly state what you plan to do
@@ -70,7 +70,7 @@ You have a `message_agent` tool to communicate with teammates.
 """
 
     return Agent(
-        name="engineer",
+        name="analytics_engineer",
         role="Analytics Engineer — implements designs, writes SQL and dbt models",
         system_prompt=system_prompt,
         model=model,

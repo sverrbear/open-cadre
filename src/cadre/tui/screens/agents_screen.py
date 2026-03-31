@@ -18,9 +18,12 @@ from cadre.providers.litellm_provider import list_provider_models
 # Short descriptions for preset agent roles
 AGENT_DESCRIPTIONS: dict[str, str] = {
     "lead": "Coordinates the team, routes tasks, never writes code",
-    "architect": "Designs data models, classifies risk, read-only",
-    "engineer": "Writes SQL/dbt code, implements designs",
-    "qa": "Reviews code quality, validates designs, read-only",
+    "backend": "Backend development — APIs, services, infrastructure code",
+    "frontend": "Frontend development — UI components, styling, client-side logic",
+    "data_architect": "Data architecture — designs schemas, classifies risk",
+    "analytics_engineer": "Analytics engineering — writes SQL, dbt models, tests",
+    "data_qa": "Data quality assurance — reviews data models against designs",
+    "qa": "General QA — code review, test coverage, integration testing",
     "solo": "All-in-one agent for solo mode",
 }
 

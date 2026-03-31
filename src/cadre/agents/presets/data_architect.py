@@ -14,10 +14,10 @@ if TYPE_CHECKING:
     from cadre.config import CadreConfig
 
 
-def create_architect(config: CadreConfig) -> Agent:
+def create_data_architect(config: CadreConfig) -> Agent:
     """Create the Data Architect agent."""
     project = config.project
-    model = config.get_model("architect")
+    model = config.get_model("data_architect")
 
     system_prompt = f"""You are the Data Architect for {project.name}.
 
@@ -43,7 +43,7 @@ When proposing a design, always include:
 ## Project Context
 - Project: {project.name}
 - Warehouse: {project.warehouse}
-{build_extra_context(config, "architect")}
+{build_extra_context(config, "data_architect")}
 ## Team Communication Protocol
 You have a `message_agent` tool to communicate with teammates.
 - **Report to the lead** before starting work: briefly state what you plan to do
@@ -60,7 +60,7 @@ You have a `message_agent` tool to communicate with teammates.
 """
 
     return Agent(
-        name="architect",
+        name="data_architect",
         role="Data Architect — designs models, classifies risk, never writes code",
         system_prompt=system_prompt,
         model=model,

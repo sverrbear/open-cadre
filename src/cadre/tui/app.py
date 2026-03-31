@@ -85,6 +85,9 @@ class CadreTUI(App):
         self.main_screen = MainScreen(config=self.config, team=self.team)
         self.push_screen(self.main_screen)
 
+        # Set callback for dynamic team changes (agent add/remove)
+        self.team._on_team_changed = self._on_team_changed
+
         # Apply initial UI config
         self.call_after_refresh(self._apply_ui_config)
 
@@ -499,6 +502,7 @@ class CadreTUI(App):
         self.pop_screen()
         self.main_screen = MainScreen(config=self.config, team=self.team)
         self.push_screen(self.main_screen)
+        self.team._on_team_changed = self._on_team_changed
 
         if setup_error:
             self.call_after_refresh(lambda: self._show_setup_error(setup_error))
@@ -534,19 +538,32 @@ class CadreTUI(App):
         self.main_screen = MainScreen(config=self.config, team=self.team)
         self.push_screen(self.main_screen)
 
+        self.team._on_team_changed = self._on_team_changed
+
         if setup_error:
             self.call_after_refresh(lambda: self._show_setup_error(setup_error))
         else:
             self.call_after_refresh(self._show_agents_hint)
 
     def _show_agents_hint(self) -> None:
-        """Prompt the user to configure agents after init."""
+        """Prompt the user to start chatting with their team lead."""
         team_pane = self._get_team_pane()
         if team_pane:
             team_pane.log.write(
                 "[green]Project created![/green] "
-                "Type [bold]/agents[/bold] to view and configure your team.\n"
+                "Start chatting with your team lead — "
+                "they'll help you build your team.\n"
             )
+
+    def _on_team_changed(self) -> None:
+        """Rebuild MainScreen when agents are added/removed at runtime."""
+        self.router = MessageRouter(team=self.team)
+        self.team.inject_router(self.router)
+        self.bridge = EventBridge(app=self, router=self.router)
+        self.pop_screen()
+        self.main_screen = MainScreen(config=self.config, team=self.team)
+        self.push_screen(self.main_screen)
+        self.team._on_team_changed = self._on_team_changed
 
     def action_toggle_sidebar(self) -> None:
         """Toggle the status sidebar visibility."""
