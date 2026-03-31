@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import random
 from typing import TYPE_CHECKING, ClassVar
 
 from textual import work
@@ -18,6 +19,31 @@ from cadre.tui.screens.chat_settings import ChatSessionSettings
 
 if TYPE_CHECKING:
     from cadre.agents.manager import AgentInfo
+
+THINKING_MESSAGES = [
+    "Claude is thinking...",
+    "Pondering your question...",
+    "Reasoning through this...",
+    "Analyzing your request...",
+    "Working on a response...",
+    "Contemplating the possibilities...",
+    "Processing your input...",
+    "Crafting a thoughtful reply...",
+    "Considering the best approach...",
+    "Mulling it over...",
+    "Diving into the details...",
+    "Connecting the dots...",
+    "Weighing the options...",
+    "Formulating a response...",
+    "Thinking deeply about this...",
+    "Exploring the solution space...",
+    "Assembling the answer...",
+    "Running through the logic...",
+    "Piecing it together...",
+    "Almost there...",
+]
+
+THINKING_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 
 
 class ChatScreen(Screen):
@@ -91,6 +117,14 @@ class ChatScreen(Screen):
         margin-left: 1;
         display: none;
     }
+
+    #thinking-indicator {
+        color: #89b4fa;
+        text-style: italic;
+        padding: 0 2;
+        height: 1;
+        display: none;
+    }
     """
 
     class GoBack(Message):
@@ -109,6 +143,8 @@ class ChatScreen(Screen):
         self._process: asyncio.subprocess.Process | None = None
         self._is_streaming = False
         self._thinking = False
+        self._thinking_timer: asyncio.Task | None = None
+        self._thinking_label: Label | None = None
 
         # Initialize session settings from agent defaults
         self._session_settings = ChatSessionSettings()
@@ -135,6 +171,7 @@ class ChatScreen(Screen):
                 auto_scroll=True,
                 id="chat-log",
             )
+            yield Label("", id="thinking-indicator")
             with Horizontal(id="chat-input-bar"):
                 yield Input(
                     placeholder="Type a message...",
@@ -206,8 +243,45 @@ class ChatScreen(Screen):
         input_widget.value = ""
         self._set_streaming(True)
         self._thinking = True
-        log.write("[dim italic #89b4fa]Claude is thinking...[/dim italic #89b4fa]")
+        self._start_thinking_animation()
         self._send_message(message)
+
+    def _start_thinking_animation(self) -> None:
+        """Start the animated thinking indicator."""
+        indicator = self.query_one("#thinking-indicator", Label)
+        indicator.display = True
+        self._thinking_message = random.choice(THINKING_MESSAGES)
+        indicator.update(f"{THINKING_FRAMES[0]} {self._thinking_message}")
+        self._thinking_timer = asyncio.ensure_future(self._animate_thinking())
+
+    async def _animate_thinking(self) -> None:
+        """Animate the thinking indicator with spinner and rotating messages."""
+        indicator = self.query_one("#thinking-indicator", Label)
+        frame_idx = 0
+        cycle_count = 0
+        try:
+            while self._thinking:
+                frame_idx = (frame_idx + 1) % len(THINKING_FRAMES)
+                cycle_count += 1
+                # Change the thinking message every ~30 frames (~3 seconds)
+                if cycle_count % 30 == 0:
+                    self._thinking_message = random.choice(THINKING_MESSAGES)
+                indicator.update(f"{THINKING_FRAMES[frame_idx]} {self._thinking_message}")
+                await asyncio.sleep(0.1)
+        except asyncio.CancelledError:
+            pass
+
+    def _stop_thinking_animation(self) -> None:
+        """Stop and hide the thinking indicator."""
+        self._thinking = False
+        if self._thinking_timer and not self._thinking_timer.done():
+            self._thinking_timer.cancel()
+            self._thinking_timer = None
+        try:
+            indicator = self.query_one("#thinking-indicator", Label)
+            indicator.display = False
+        except Exception:
+            pass
 
     def _set_streaming(self, streaming: bool) -> None:
         self._is_streaming = streaming
@@ -295,6 +369,7 @@ class ChatScreen(Screen):
             log.write(f"\n[bold red]Error:[/bold red] {e}\n")
         finally:
             self._process = None
+            self._stop_thinking_animation()
             self._set_streaming(False)
 
     def _handle_stream_event(self, event: dict, current_text: str) -> str:
@@ -310,11 +385,18 @@ class ChatScreen(Screen):
             if current_text:
                 log.write(f"[#a6e3a1]{current_text}[/#a6e3a1]")
                 current_text = ""
-            # Clear thinking indicator and show Claude header
-            if self._thinking:
-                self._thinking = False
+            # Clear thinking indicator
+            self._stop_thinking_animation()
             log.write("\n[bold #a6e3a1]Claude:[/bold #a6e3a1]")
-            # Text content will arrive via content_block_delta events
+
+            # Extract text from the assistant message content
+            message = event.get("message", {})
+            content_blocks = message.get("content", [])
+            for block in content_blocks:
+                if block.get("type") == "text":
+                    text = block.get("text", "")
+                    if text:
+                        current_text += text
 
         elif event_type == "content_block_delta":
             delta = event.get("delta", {})
@@ -346,6 +428,10 @@ class ChatScreen(Screen):
             log.write(f"[dim #585b70]  \u25b8 result: {result_str}[/dim #585b70]")
 
         elif event_type == "result":
+            # If no text was displayed yet, use the result field as fallback
+            result_text = event.get("result", "")
+            if not current_text and result_text:
+                current_text = result_text
             if current_text:
                 log.write(f"[#a6e3a1]{current_text}[/#a6e3a1]")
                 current_text = ""
@@ -353,7 +439,8 @@ class ChatScreen(Screen):
             sid = event.get("session_id")
             if sid:
                 self.session_id = sid
-            # Text already shown via assistant + content_block_delta events
+            # Ensure thinking is stopped
+            self._stop_thinking_animation()
             log.write("")  # blank line separator
 
         return current_text
