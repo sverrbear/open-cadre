@@ -29,8 +29,8 @@ def classify_llm_error(error: Exception) -> CadreError:
             hint=(
                 f"Your {error.provider} API key is valid, but this model may not be "
                 f"available on your account or has compatibility issues. "
-                f"The system will try a fallback model automatically. "
-                f"You can also switch models manually with `cadre config`."
+                f"Switch models with `cadre models set <agent> <model>` or check "
+                f"available models with `cadre models list`."
             ),
             original=error.original,
         )
