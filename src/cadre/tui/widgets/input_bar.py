@@ -13,11 +13,15 @@ SLASH_COMMANDS = {
     "/help": "Show available commands",
     "/init": "Initialize or reconfigure project",
     "/status": "Show team status",
+    "/agents": "View and configure agents",
+    "/keys": "Show API key status",
+    "/models": "Show configured models",
     "/settings": "Open settings panel",
     "/config": "Open settings panel",
-    "/models": "Show configured models",
     "/doctor": "Check prerequisites",
     "/workflow": "Show workflows",
+    "/clear": "Clear team lead chat and context",
+    "/clear-all": "Clear all agents' chat and context",
     "/quit": "Exit OpenCadre",
 }
 
