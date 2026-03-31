@@ -99,14 +99,11 @@ class CadreTUI(App):
 
     def on_main_screen_launch_claude(self, event: MainScreen.LaunchClaude) -> None:
         """Handle launch claude request — suspend TUI and run claude."""
-        self.suspend()
-        try:
-            cmd = ["claude"]
-            if event.agent:
-                cmd.extend(["--agent", event.agent])
+        cmd = ["claude"]
+        if event.agent:
+            cmd.extend(["--agent", event.agent])
+        with self.suspend():
             subprocess.run(cmd)
-        finally:
-            self.resume()
 
     def on_main_screen_agents_changed(self, _event: MainScreen.AgentsChanged) -> None:
         """Refresh the main screen when agents change."""
