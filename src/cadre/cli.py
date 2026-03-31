@@ -133,6 +133,29 @@ def doctor():
 
 
 @main.command()
+@click.argument("team_preset", default="full")
+def team(team_preset: str):
+    """Launch team chat in the TUI.
+
+    TEAM_PRESET: full (default), dev, or review
+    """
+    from cadre.presets import TEAM_PRESETS
+
+    if team_preset not in TEAM_PRESETS:
+        console.print(
+            f"[red]Unknown team preset '{team_preset}'.[/red] "
+            f"Available: {', '.join(TEAM_PRESETS.keys())}"
+        )
+        return
+
+    from cadre.tui.app import CadreTUI
+
+    cfg = _load_config()
+    app = CadreTUI(cfg, launch_team=team_preset)
+    app.run()
+
+
+@main.command()
 def up():
     """Start the OpenCadre TUI."""
     _launch_tui()
