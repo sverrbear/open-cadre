@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 from typing import ClassVar
 
@@ -98,12 +97,14 @@ class CadreTUI(App):
             return None
 
     def on_main_screen_launch_claude(self, event: MainScreen.LaunchClaude) -> None:
-        """Handle launch claude request — suspend TUI and run claude."""
-        cmd = ["claude"]
-        if event.agent:
-            cmd.extend(["--agent", event.agent])
-        with self.suspend():
-            subprocess.run(cmd)
+        """Handle launch claude request — open chat screen."""
+        from cadre.tui.screens.chat_screen import ChatScreen
+
+        self.push_screen(ChatScreen(agent=event.agent))
+
+    def on_chat_screen_go_back(self, _event) -> None:
+        """Handle chat screen back navigation."""
+        self.pop_screen()
 
     def on_main_screen_agents_changed(self, _event: MainScreen.AgentsChanged) -> None:
         """Refresh the main screen when agents change."""
