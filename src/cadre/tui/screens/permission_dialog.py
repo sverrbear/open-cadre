@@ -82,18 +82,25 @@ class PermissionDialog(ModalScreen[bool]):
         tool_name: str,
         tool_input: dict | str,
         reason: str = "",
+        agent_name: str = "",
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
         self._tool_name = tool_name
         self._tool_input = tool_input
         self._reason = reason
+        self._agent_name = agent_name
 
     def compose(self) -> ComposeResult:
         detail = self._format_tool_input()
 
         with Vertical(id="perm-container"):
-            yield Label("Claude wants to use a tool", id="perm-title")
+            title = (
+                f"{self._agent_name} wants to use a tool"
+                if self._agent_name
+                else "Claude wants to use a tool"
+            )
+            yield Label(title, id="perm-title")
             yield Label(f"Tool: {self._tool_name}", id="perm-tool-label")
             yield Static(detail, id="perm-detail")
             if self._reason:

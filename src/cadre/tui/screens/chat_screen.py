@@ -3,19 +3,20 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import random
 import re
 import time
 from typing import TYPE_CHECKING, ClassVar
 
-from textual import work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.message import Message
 from textual.screen import Screen
 from textual.widgets import Button, Label, RichLog, TextArea
+
+from cadre.agents.session import AgentSession, StreamEvent
+from cadre.tui.screens.chat_settings import ChatSessionSettings
 
 
 class ChatInput(TextArea):
@@ -32,7 +33,6 @@ class ChatInput(TextArea):
             return
         super()._on_key(event)
 
-from cadre.tui.screens.chat_settings import ChatSessionSettings
 
 if TYPE_CHECKING:
     from cadre.agents.manager import AgentInfo
@@ -238,7 +238,6 @@ class ChatScreen(Screen):
         self._agent_info = agent_info
         self._show_welcome = show_welcome
         self.session_id: str | None = None
-        self._process: asyncio.subprocess.Process | None = None
         self._is_streaming = False
         self._thinking = False
         self._thinking_timer: asyncio.Task | None = None
@@ -259,6 +258,16 @@ class ChatScreen(Screen):
             self._session_settings.effort = agent_info.effort or "medium"
         else:
             self._session_settings.effort = "medium"
+
+        # Create the agent session
+        self._session = AgentSession(
+            agent_name=agent,
+            settings=self._session_settings,
+        )
+        self._session.on_stream_event = self._on_session_event
+        self._session.on_permission_request = self._on_session_permission
+        self._session.on_status_change = self._on_session_status
+        self._session.on_complete = self._on_session_complete
 
     def compose(self) -> ComposeResult:
         agent_label = f"  agent: {self.agent}" if self.agent else ""
@@ -313,6 +322,124 @@ class ChatScreen(Screen):
         text_area.focus()
         self._update_settings_summary()
 
+    # ── AgentSession callbacks ──────────────────────────────────────────
+
+    def _on_session_event(self, se: StreamEvent) -> None:
+        """Handle stream events from the AgentSession."""
+        log = self.query_one("#chat-log", RichLog)
+
+        if se.event_type == "assistant":
+            if se.text:
+                if not self._shown_claude_header:
+                    log.write("\n[bold #a6e3a1]Claude:[/bold #a6e3a1]")
+                    self._shown_claude_header = True
+                log.write(f"[#a6e3a1]{se.text}[/#a6e3a1]")
+                self._last_response_text += se.text
+            if se.input_tokens:
+                self._total_input_tokens += se.input_tokens
+            if se.output_tokens:
+                self._total_output_tokens += se.output_tokens
+
+        elif se.event_type == "content_block_delta":
+            if se.text:
+                if not self._shown_claude_header:
+                    log.write("\n[bold #a6e3a1]Claude:[/bold #a6e3a1]")
+                    self._shown_claude_header = True
+                log.write(f"[#a6e3a1]{se.text}[/#a6e3a1]")
+                self._last_response_text += se.text
+
+        elif se.event_type == "tool_use":
+            task_desc = f"Using {se.tool_name}"
+            if se.tool_input_summary:
+                task_desc += f" {se.tool_input_summary}"
+            self._thinking_message = task_desc
+
+        elif se.event_type == "result":
+            if not self._last_response_text and se.result_text:
+                if not self._shown_claude_header:
+                    log.write("\n[bold #a6e3a1]Claude:[/bold #a6e3a1]")
+                    self._shown_claude_header = True
+                log.write(f"[#a6e3a1]{se.result_text}[/#a6e3a1]")
+                self._last_response_text += se.result_text
+            if se.session_id:
+                self.session_id = se.session_id
+            if se.input_tokens:
+                self._total_input_tokens += se.input_tokens
+            if se.output_tokens:
+                self._total_output_tokens += se.output_tokens
+            self._stop_thinking_animation()
+            log.write("")  # blank line separator
+
+        elif se.event_type == "error":
+            log.write(f"\n[bold red]Error:[/bold red] {se.text}\n")
+
+    async def _on_session_permission(self, agent_name: str, event: dict) -> bool:
+        """Handle permission request from AgentSession."""
+        from cadre.tui.screens.permission_dialog import PermissionDialog
+
+        request = event.get("request", {})
+        tool_name = request.get("tool_name", "unknown")
+        tool_input = request.get("input", {})
+        reason = request.get("decision_reason", "")
+
+        # Show in the chat log
+        log = self.query_one("#chat-log", RichLog)
+        if isinstance(tool_input, dict) and tool_name == "Bash":
+            cmd_str = tool_input.get("command", "")
+            msg = f"  \u26a0 Permission needed: {tool_name} \u2014 {cmd_str}"
+            log.write(f"[dim #f9e2af]{msg}[/dim #f9e2af]")
+        else:
+            log.write(f"[dim #f9e2af]  \u26a0 Permission needed: {tool_name}[/dim #f9e2af]")
+
+        # Create a future to wait for the dialog result
+        future: asyncio.Future[bool] = asyncio.get_event_loop().create_future()
+        self._pending_permission = future
+
+        def on_result(allowed: bool | None) -> None:
+            if not future.done():
+                future.set_result(bool(allowed))
+
+        self.app.push_screen(
+            PermissionDialog(tool_name=tool_name, tool_input=tool_input, reason=reason),
+            callback=on_result,
+        )
+
+        allowed = await future
+        self._pending_permission = None
+
+        if allowed:
+            status = "[bold green]\u2713 Allowed[/bold green]"
+        else:
+            status = "[bold red]\u2717 Denied[/bold red]"
+        log.write(f"[dim]  {status}[/dim]")
+
+        return allowed
+
+    def _on_session_status(self, agent_name: str, status: str, task: str) -> None:
+        """Handle status changes from AgentSession."""
+        if status == "thinking":
+            self._thinking_message = random.choice(THINKING_MESSAGES)
+
+    def _on_session_complete(self, agent_name: str, accumulated_text: str) -> None:
+        """Handle session completion."""
+        self._stop_thinking_animation()
+        self._set_streaming(False)
+        self._stream_start_time = 0
+
+        # Show final token usage
+        tokens = self._format_tokens()
+        if tokens:
+            log = self.query_one("#chat-log", RichLog)
+            log.write(f"[dim #585b70]  tokens: {tokens}[/dim #585b70]")
+
+        # Check for quick-reply options in the response
+        if self._last_response_text:
+            options = self._parse_options_from_text(self._last_response_text)
+            if options:
+                self._show_quick_replies(options)
+
+    # ── Button/input handlers ───────────────────────────────────────────
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "back-btn":
             self.action_go_back()
@@ -321,14 +448,13 @@ class ChatScreen(Screen):
         elif event.button.id == "stop-btn":
             self._stop_streaming()
         elif hasattr(event.button, "data") and isinstance(getattr(event.button, "data", None), str):
-            # Quick reply button clicked
             self._send_quick_reply(event.button.data)
 
     def on_chat_input_submitted(self, event: ChatInput.Submitted) -> None:
         """Handle Enter key in the chat input."""
         quick_replies = self.query_one("#quick-replies", Vertical)
 
-        # If quick replies are visible and one is selected, use it
+
         if quick_replies.display and self._quick_reply_index >= 0:
             buttons = list(quick_replies.query(".quick-reply-btn"))
             if 0 <= self._quick_reply_index < len(buttons):
@@ -346,7 +472,6 @@ class ChatScreen(Screen):
         """Handle keyboard events for quick-reply navigation."""
         quick_replies = self.query_one("#quick-replies", Vertical)
 
-        # Handle quick-reply navigation when visible
         if quick_replies.display:
             buttons = list(quick_replies.query(".quick-reply-btn"))
             if event.key == "up":
@@ -380,7 +505,7 @@ class ChatScreen(Screen):
         self._set_streaming(True)
         self._thinking = True
         self._start_thinking_animation()
-        self._send_message(text)
+        self._do_send(text)
 
     def _show_quick_replies(self, options: list[str]) -> None:
         """Show quick-reply buttons for the given options."""
@@ -392,7 +517,6 @@ class ChatScreen(Screen):
             btn.data = option
             container.mount(btn)
 
-        # Add "Type your own answer..." option
         type_own = Button(
             "  [dim]Type your own answer...[/dim]",
             classes="quick-reply-btn",
@@ -403,7 +527,6 @@ class ChatScreen(Screen):
         self._quick_reply_index = 0
         container.display = True
 
-        # Highlight first option
         buttons = list(container.query(".quick-reply-btn"))
         self._highlight_quick_reply(buttons)
 
@@ -436,6 +559,7 @@ class ChatScreen(Screen):
         """Apply settings from the modal."""
         if result is not None:
             self._session_settings = result
+            self._session.settings = result
             self._update_settings_summary()
 
     def _update_settings_summary(self) -> None:
@@ -460,11 +584,9 @@ class ChatScreen(Screen):
         if not message or self._is_streaming:
             return
 
-        # Hide command palette and quick replies on submit
         self._hide_command_palette()
         self._hide_quick_replies()
 
-        # Check for slash commands
         if message.startswith("/"):
             text_area.clear()
             self._dispatch_command(message)
@@ -477,7 +599,17 @@ class ChatScreen(Screen):
         self._set_streaming(True)
         self._thinking = True
         self._start_thinking_animation()
-        self._send_message(message)
+        self._do_send(message)
+
+    from textual import work
+
+    @work(thread=False)
+    async def _do_send(self, message: str) -> None:
+        """Send message via AgentSession."""
+        self._shown_claude_header = False
+        self._last_response_text = ""
+        self._stream_start_time = time.time()
+        await self._session.send_message(message)
 
     @work(thread=False)
     async def _dispatch_command(self, text: str) -> None:
@@ -491,6 +623,8 @@ class ChatScreen(Screen):
                 f"[bold yellow]Unknown command:[/bold yellow] {text}\n"
                 "[dim]Type [bold]/help[/bold] to see available commands.[/dim]\n"
             )
+
+    # ── Thinking animation ──────────────────────────────────────────────
 
     def _format_elapsed(self) -> str:
         """Format elapsed time since stream started."""
@@ -521,7 +655,7 @@ class ChatScreen(Screen):
         self._thinking_timer = asyncio.ensure_future(self._animate_thinking())
 
     async def _animate_thinking(self) -> None:
-        """Animate the thinking indicator with spinner, rotating messages, timer, and tokens."""
+        """Animate the thinking indicator."""
         indicator = self.query_one("#thinking-indicator", Label)
         frame_idx = 0
         cycle_count = 0
@@ -529,11 +663,9 @@ class ChatScreen(Screen):
             while self._thinking:
                 frame_idx = (frame_idx + 1) % len(THINKING_FRAMES)
                 cycle_count += 1
-                # Change the thinking message every ~30 frames (~3 seconds)
                 if cycle_count % 30 == 0:
                     self._thinking_message = random.choice(THINKING_MESSAGES)
 
-                # Build status line with timer and tokens
                 elapsed = self._format_elapsed()
                 tokens = self._format_tokens()
                 status_parts = [f"{THINKING_FRAMES[frame_idx]} {self._thinking_message}"]
@@ -572,235 +704,9 @@ class ChatScreen(Screen):
             text_area.focus()
 
     def _stop_streaming(self) -> None:
-        if self._process:
-            self._process.terminate()
+        self._session.stop()
 
-    def _build_claude_cmd(self, user_message: str) -> list[str]:
-        """Build the claude CLI command with all session settings."""
-        cmd = ["claude", "-p", user_message, "--output-format", "stream-json", "--verbose"]
-
-        if self.agent:
-            cmd.extend(["--agent", self.agent])
-        if self.session_id:
-            cmd.extend(["--resume", self.session_id])
-
-        s = self._session_settings
-        if s.model:
-            cmd.extend(["--model", s.model])
-        if s.effort:
-            cmd.extend(["--effort", s.effort])
-        if s.permission_mode:
-            cmd.extend(["--permission-mode", s.permission_mode])
-        if s.skip_permissions:
-            cmd.append("--dangerously-skip-permissions")
-
-        return cmd
-
-    def _flush_text(self, log: RichLog, current_text: str) -> str:
-        """Flush buffered text to the log, prepending Claude: header if needed."""
-        if current_text:
-            if not self._shown_claude_header:
-                log.write("\n[bold #a6e3a1]Claude:[/bold #a6e3a1]")
-                self._shown_claude_header = True
-            log.write(f"[#a6e3a1]{current_text}[/#a6e3a1]")
-            self._last_response_text += current_text
-        return ""
-
-    async def _handle_permission_request(self, event: dict) -> None:
-        """Show permission dialog and send response back to Claude via stdin."""
-        from cadre.tui.screens.permission_dialog import PermissionDialog
-
-        request = event.get("request", {})
-        tool_name = request.get("tool_name", "unknown")
-        tool_input = request.get("input", {})
-        reason = request.get("decision_reason", "")
-        request_id = event.get("request_id", "")
-
-        # Show in the chat log
-        log = self.query_one("#chat-log", RichLog)
-        if isinstance(tool_input, dict) and tool_name == "Bash":
-            cmd_str = tool_input.get("command", "")
-            log.write(f"[dim #f9e2af]  ⚠ Permission needed: {tool_name} — {cmd_str}[/dim #f9e2af]")
-        else:
-            log.write(f"[dim #f9e2af]  ⚠ Permission needed: {tool_name}[/dim #f9e2af]")
-
-        # Create a future to wait for the dialog result
-        future: asyncio.Future[bool] = asyncio.get_event_loop().create_future()
-        self._pending_permission = future
-
-        def on_result(allowed: bool | None) -> None:
-            if not future.done():
-                future.set_result(bool(allowed))
-
-        self.app.push_screen(
-            PermissionDialog(tool_name=tool_name, tool_input=tool_input, reason=reason),
-            callback=on_result,
-        )
-
-        # Wait for user decision
-        allowed = await future
-        self._pending_permission = None
-
-        # Send response back to Claude via stdin
-        if self._process and self._process.stdin:
-            response = {
-                "type": "control_response",
-                "request_id": request_id,
-                "response": {"allowed": allowed},
-            }
-            response_line = json.dumps(response) + "\n"
-            self._process.stdin.write(response_line.encode())
-            await self._process.stdin.drain()
-
-            if allowed:
-                status = "[bold green]✓ Allowed[/bold green]"
-            else:
-                status = "[bold red]✗ Denied[/bold red]"
-            log.write(f"[dim]  {status}[/dim]")
-
-    @work(thread=False)
-    async def _send_message(self, user_message: str) -> None:
-        cmd = self._build_claude_cmd(user_message)
-        self._shown_claude_header = False
-        self._last_response_text = ""
-        self._stream_start_time = time.time()
-
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                stdin=asyncio.subprocess.PIPE,
-            )
-            self._process = proc
-
-            current_text = ""
-            log = self.query_one("#chat-log", RichLog)
-            async for raw_line in proc.stdout:
-                line = raw_line.decode().strip()
-                if not line:
-                    continue
-                try:
-                    event = json.loads(line)
-
-                    # Handle permission requests specially (async dialog)
-                    if event.get("type") == "control_request":
-                        current_text = self._flush_text(log, current_text)
-                        await self._handle_permission_request(event)
-                        continue
-
-                    current_text = self._handle_stream_event(event, current_text)
-                except json.JSONDecodeError:
-                    pass
-
-            # Flush any remaining text
-            if current_text:
-                self._flush_text(log, current_text)
-
-            await proc.wait()
-
-            if proc.returncode and proc.returncode != 0:
-                stderr_bytes = await proc.stderr.read()
-                stderr = stderr_bytes.decode().strip()
-                if stderr:
-                    log.write(f"\n[bold red]Error:[/bold red] {stderr}\n")
-
-        except FileNotFoundError:
-            log = self.query_one("#chat-log", RichLog)
-            log.write(
-                "\n[bold red]Claude Code not found.[/bold red]\n"
-                "[dim]Install: npm install -g @anthropic-ai/claude-code[/dim]\n"
-            )
-        except Exception as e:
-            log = self.query_one("#chat-log", RichLog)
-            log.write(f"\n[bold red]Error:[/bold red] {e}\n")
-        finally:
-            self._process = None
-            self._stop_thinking_animation()
-            self._set_streaming(False)
-            self._stream_start_time = 0
-
-            # Show final token usage
-            tokens = self._format_tokens()
-            if tokens:
-                log = self.query_one("#chat-log", RichLog)
-                log.write(f"[dim #585b70]  tokens: {tokens}[/dim #585b70]")
-
-            # Check for quick-reply options in the response
-            if self._last_response_text:
-                options = self._parse_options_from_text(self._last_response_text)
-                if options:
-                    self._show_quick_replies(options)
-
-    def _handle_stream_event(self, event: dict, current_text: str) -> str:
-        """Process a stream-json event and update the chat log.
-
-        Returns the accumulated text buffer (for batching assistant text).
-        """
-        log = self.query_one("#chat-log", RichLog)
-        event_type = event.get("type", "")
-
-        if event_type == "assistant":
-            # Flush previous text if any
-            current_text = self._flush_text(log, current_text)
-            # Note: do NOT stop thinking animation here — keep it running until "result"
-
-            # Extract text from the assistant message content (buffer it, don't write header yet)
-            message = event.get("message", {})
-            content_blocks = message.get("content", [])
-            for block in content_blocks:
-                if block.get("type") == "text":
-                    text = block.get("text", "")
-                    if text:
-                        current_text += text
-
-            # Track token usage from assistant message
-            usage = message.get("usage", {})
-            if usage:
-                self._total_input_tokens += usage.get("input_tokens", 0)
-                self._total_output_tokens += usage.get("output_tokens", 0)
-
-        elif event_type == "content_block_delta":
-            delta = event.get("delta", {})
-            if delta.get("type") == "text_delta":
-                current_text += delta.get("text", "")
-
-        elif event_type == "tool_use":
-            current_text = self._flush_text(log, current_text)
-            tool_name = event.get("name", event.get("tool", {}).get("name", "unknown"))
-            tool_input = event.get("input", event.get("tool", {}).get("input", {}))
-            input_summary = ""
-            if isinstance(tool_input, dict):
-                for _key, val in list(tool_input.items())[:1]:
-                    val_str = str(val)[:60]
-                    input_summary += f" {val_str}"
-            # Show tool activity in the thinking indicator (ephemeral, not in chat log)
-            self._thinking_message = f"Using {tool_name}{input_summary}"
-
-        elif event_type == "tool_result":
-            # Don't persist tool results in chat — shown ephemerally via thinking indicator
-            pass
-
-        elif event_type == "result":
-            # If no text was displayed yet, use the result field as fallback
-            result_text = event.get("result", "")
-            if not current_text and result_text:
-                current_text = result_text
-            current_text = self._flush_text(log, current_text)
-            # Capture session_id for conversation continuity
-            sid = event.get("session_id")
-            if sid:
-                self.session_id = sid
-            # Track final token usage
-            usage = event.get("usage", {})
-            if usage:
-                self._total_input_tokens += usage.get("input_tokens", 0)
-                self._total_output_tokens += usage.get("output_tokens", 0)
-            # Stop thinking animation only on final result
-            self._stop_thinking_animation()
-            log.write("")  # blank line separator
-
-        return current_text
+    # ── Command palette ─────────────────────────────────────────────────
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         """Show/hide command palette based on input."""
@@ -808,7 +714,6 @@ class ChatScreen(Screen):
             return
         value = event.text_area.text.strip()
 
-        # Hide quick replies when user starts typing
         self._hide_quick_replies()
 
         if value.startswith("/"):
@@ -821,11 +726,8 @@ class ChatScreen(Screen):
         from cadre.tui.commands import COMMANDS
 
         palette = self.query_one("#command-palette", Vertical)
-
-        # Remove existing items
         palette.remove_children()
 
-        # Filter commands
         prefix = filter_text.lower()
         matches = [
             cmd for name, cmd in COMMANDS.items() if name.startswith(prefix) or prefix == "/"
@@ -840,7 +742,7 @@ class ChatScreen(Screen):
                 f"[bold #89b4fa]{cmd.name:<12}[/bold #89b4fa] [#6c7086]{cmd.description}[/#6c7086]",
                 classes="cmd-item",
             )
-            label.data = cmd.name  # store command name for click handling
+            label.data = cmd.name
             palette.mount(label)
 
         palette.display = True
@@ -869,7 +771,11 @@ class ChatScreen(Screen):
         """Switch the active agent mid-session."""
         self.agent = agent_name
         self._agent_info = agent_info
-        self.session_id = None  # reset session for new agent
+        self.session_id = None
+
+        # Update the session
+        self._session.agent_name = agent_name
+        self._session.session_id = None
 
         # Update header
         agent_label = f"  agent: {self.agent}" if self.agent else ""
@@ -880,11 +786,11 @@ class ChatScreen(Screen):
             self._session_settings.permission_mode = agent_info.permission_mode or ""
             self._session_settings.model = agent_info.model or ""
             self._session_settings.effort = agent_info.effort or "medium"
+            self._session.settings = self._session_settings
             self._update_settings_summary()
 
     def action_go_back(self) -> None:
         if self._is_streaming:
             self._stop_streaming()
-        # Only navigate back if not the root screen
         if len(self.app.screen_stack) > 2:
             self.post_message(self.GoBack())

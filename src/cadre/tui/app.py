@@ -25,11 +25,12 @@ class CadreTUI(App):
         Binding("ctrl+q", "quit", "Quit", show=True),
     ]
 
-    def __init__(self, config: CadreConfig) -> None:
+    def __init__(self, config: CadreConfig, launch_team: str = "") -> None:
         self.config = config
         self.theme_registry = ThemeRegistry(project_path=Path.cwd())
         self.main_screen = None
         self._active_agents: set[str] = set()
+        self._launch_team = launch_team
 
         theme_name = config.ui.theme
         self._css_path = [self.theme_registry.get_css_path(theme_name)]
@@ -42,8 +43,15 @@ class CadreTUI(App):
         return self._css_path
 
     def on_mount(self) -> None:
-        """Push the chat screen as the default view."""
+        """Push the chat screen (or team chat) as the default view."""
         agents = list_agents()
+
+        # Launch directly into team chat if requested
+        if self._launch_team:
+            self._start_team_chat(self._launch_team, agents)
+            self.call_after_refresh(self._check_claude)
+            return
+
         show_welcome = len(agents) == 0
 
         # Default to lead agent if it exists
@@ -60,6 +68,24 @@ class CadreTUI(App):
         )
 
         self.call_after_refresh(self._check_claude)
+
+    def _start_team_chat(self, team_name: str, agents: list | None = None) -> None:
+        """Launch team chat screen for the given team preset."""
+        from cadre.presets import TEAM_PRESETS
+        from cadre.tui.screens.team_chat_screen import TeamChatScreen
+
+        if agents is None:
+            agents = list_agents()
+
+        team_agent_names = TEAM_PRESETS.get(team_name, [])
+        team_agents = [a for a in agents if a.name in team_agent_names]
+
+        if not team_agents:
+            # Fall back to regular chat if no team agents found
+            self.push_screen(ChatScreen(show_welcome=True))
+            return
+
+        self.push_screen(TeamChatScreen(team_name=team_name, agents=team_agents))
 
     def _check_claude(self) -> None:
         """Check if claude CLI is available and log to chat."""
@@ -88,6 +114,14 @@ class CadreTUI(App):
         if event.agent:
             self._active_agents.add(event.agent)
         self.push_screen(ChatScreen(agent=event.agent, agent_info=event.agent_info))
+
+    def on_team_chat_screen_go_back(self, _event) -> None:
+        """Handle team chat screen back navigation."""
+        self.pop_screen()
+
+    def on_main_screen_launch_team(self, event) -> None:
+        """Handle team launch from dashboard."""
+        self._start_team_chat(event.team_name)
 
     def on_chat_screen_go_back(self, _event) -> None:
         """Handle chat screen back navigation."""

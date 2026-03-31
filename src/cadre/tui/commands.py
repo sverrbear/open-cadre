@@ -82,7 +82,7 @@ async def _handle_explore(screen: ChatScreen, _args: str) -> None:
     screen._set_streaming(True)
     screen._thinking = True
     log.write("[dim italic #89b4fa]Claude is thinking...[/dim italic #89b4fa]")
-    screen._send_message(prompt)
+    screen._do_send(prompt)
 
 
 async def _handle_agents(screen: ChatScreen, _args: str) -> None:
@@ -130,6 +130,45 @@ async def _handle_clear(screen: ChatScreen, _args: str) -> None:
     log.write("[dim]Context cleared. Starting a fresh conversation.[/dim]\n")
 
 
+async def _handle_team(screen: ChatScreen, args: str) -> None:
+    """Launch team chat mode."""
+    from cadre.agents.manager import list_agents
+    from cadre.presets import TEAM_PRESETS
+    from cadre.tui.screens.team_chat_screen import TeamChatScreen
+
+    log = screen.query_one("#chat-log")
+    team_name = args.strip() or "full"
+
+    if team_name not in TEAM_PRESETS:
+        available = ", ".join(TEAM_PRESETS.keys())
+        log.write(
+            f"[bold red]Unknown team preset '{team_name}'.[/bold red]\n"
+            f"[dim]Available: {available}[/dim]\n"
+        )
+        return
+
+    agents = list_agents()
+    team_agent_names = TEAM_PRESETS[team_name]
+    team_agents = [a for a in agents if a.name in team_agent_names]
+
+    if not team_agents:
+        missing = set(team_agent_names) - {a.name for a in agents}
+        log.write(
+            f"[bold yellow]Missing agents: {', '.join(missing)}[/bold yellow]\n"
+            "[dim]Run [bold]/init[/bold] or [bold]opencadre init[/bold] first.[/dim]\n"
+        )
+        return
+
+    if len(team_agents) < len(team_agent_names):
+        missing = set(team_agent_names) - {a.name for a in team_agents}
+        found = [a.name for a in team_agents]
+        log.write(
+            f"[dim]Note: missing {', '.join(missing)}. Starting with: {', '.join(found)}[/dim]\n"
+        )
+
+    screen.app.push_screen(TeamChatScreen(team_name=team_name, agents=team_agents))
+
+
 async def _handle_help(screen: ChatScreen, _args: str) -> None:
     """Show all available commands."""
     log = screen.query_one("#chat-log")
@@ -146,6 +185,7 @@ COMMANDS: dict[str, SlashCommand] = {
     "/settings": SlashCommand("/settings", "Open session settings", _handle_settings),
     "/clear": SlashCommand("/clear", "Clear context and start fresh", _handle_clear),
     "/dashboard": SlashCommand("/dashboard", "Open the dashboard view", _handle_dashboard),
+    "/team": SlashCommand("/team", "Start team chat (full/dev/review)", _handle_team),
     "/help": SlashCommand("/help", "Show available commands", _handle_help),
 }
 
