@@ -10,7 +10,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
-from textual.widgets import Button, Checkbox, Input, Label, Select, Static
+from textual.widgets import Button, Checkbox, Input, Label, Static
 
 from cadre.config import (
     AUTO_MODEL,
@@ -144,14 +144,6 @@ class InitScreen(Screen[CadreConfig | None]):
                         classes="api-key-input",
                     )
 
-            # Team mode
-            yield Label("Team mode", classes="section-label")
-            yield Select(
-                [("Full team (4 agents)", "full"), ("Solo (1 agent)", "solo")],
-                value="full",
-                id="team-mode",
-            )
-
             with Horizontal(id="button-row"):
                 yield Button("Cancel", variant="default", id="cancel-btn")
                 yield Button("Create Project", variant="primary", id="create-btn")
@@ -194,7 +186,6 @@ class InitScreen(Screen[CadreConfig | None]):
         project_name = self.query_one("#project-name", Input).value or self.base_path.name
         project_type = self.detection.project_type or "generic"
         warehouse = self.detection.warehouse or "snowflake"
-        mode = self.query_one("#team-mode", Select).value or "full"
 
         # Collect providers and API keys
         providers: dict[str, ProviderConfig] = {}
@@ -232,9 +223,8 @@ class InitScreen(Screen[CadreConfig | None]):
                 api_key=f"${{{PROVIDER_ENV_VARS['anthropic']}}}"
             )
 
-        # Create agents in auto mode — models resolved at runtime from configured providers
-        agent_names = ["solo"] if mode == "solo" else ["lead", "architect", "engineer", "qa"]
-        agents = {name: AgentConfig(model=AUTO_MODEL) for name in agent_names}
+        # Start with lead-only — the lead helps the user build their team conversationally
+        agents = {"lead": AgentConfig(model=AUTO_MODEL)}
 
         config = CadreConfig(
             project=ProjectConfig(
@@ -244,7 +234,7 @@ class InitScreen(Screen[CadreConfig | None]):
                 ci_platform=self.detection.ci_platform,
             ),
             providers=providers,
-            team=TeamConfig(mode=str(mode), agents=agents),
+            team=TeamConfig(mode="full", agents=agents),
             tools=ToolsConfig(),
             workflows=WorkflowsConfig(),
         )

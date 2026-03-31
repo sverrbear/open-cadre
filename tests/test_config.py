@@ -19,16 +19,16 @@ def test_default_config():
 
 def test_get_model(sample_config):
     assert sample_config.get_model("lead") == "anthropic/claude-opus-4-6"
-    assert sample_config.get_model("engineer") == "anthropic/claude-sonnet-4-6"
+    assert sample_config.get_model("analytics_engineer") == "anthropic/claude-sonnet-4-6"
     assert "sonnet" in sample_config.get_model("unknown")  # fallback
 
 
 def test_get_enabled_agents(sample_config):
     agents = sample_config.get_enabled_agents()
     assert "lead" in agents
-    assert "architect" in agents
-    assert "engineer" in agents
-    assert "qa" in agents
+    assert "data_architect" in agents
+    assert "analytics_engineer" in agents
+    assert "data_qa" in agents
 
 
 def test_solo_mode_agents(solo_config):
@@ -114,6 +114,67 @@ def test_config_sanitizes_raw_keys():
     result = _config_to_dict(config)
     # Should be sanitized to env var reference
     assert result["providers"]["anthropic"]["api_key"] == "${ANTHROPIC_API_KEY}"
+
+
+def test_default_config_is_lead_only():
+    """Default config should start with only the lead agent."""
+    config = CadreConfig()
+    assert list(config.team.agents.keys()) == ["lead"]
+
+
+def test_legacy_agent_name_mapping():
+    """Old agent names (architect, engineer) should be mapped to new names on load."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cadre_dir = os.path.join(tmpdir, CADRE_DIR)
+        os.makedirs(cadre_dir)
+        agents_dir = os.path.join(cadre_dir, "agents")
+        os.makedirs(agents_dir)
+
+        # Write config
+        config_path = os.path.join(cadre_dir, "config.yml")
+        with open(config_path, "w") as f:
+            yaml.dump({"team": {"mode": "full"}}, f)
+
+        # Write legacy agent files
+        for name in ["lead", "architect", "engineer", "qa"]:
+            with open(os.path.join(agents_dir, f"{name}.yml"), "w") as f:
+                yaml.dump({"model": "auto", "enabled": True}, f)
+
+        config = CadreConfig.load(tmpdir)
+        agents = config.team.agents
+        assert "data_architect" in agents  # architect -> data_architect
+        assert "analytics_engineer" in agents  # engineer -> analytics_engineer
+        assert "architect" not in agents
+        assert "engineer" not in agents
+        assert "lead" in agents
+        assert "qa" in agents
+
+
+def test_save_agent_and_remove_agent_file():
+    """Test save_agent and remove_agent_file helper methods."""
+    from cadre.config import AgentConfig, TeamConfig
+
+    config = CadreConfig(
+        team=TeamConfig(
+            agents={
+                "lead": AgentConfig(model="auto"),
+                "backend": AgentConfig(model="auto", extra_context="Backend stuff"),
+            }
+        )
+    )
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Save just the backend agent
+        config.save_agent("backend", tmpdir)
+        agent_path = os.path.join(tmpdir, CADRE_DIR, "agents", "backend.yml")
+        assert os.path.exists(agent_path)
+
+        with open(agent_path) as f:
+            data = yaml.safe_load(f)
+        assert data["extra_context"] == "Backend stuff"
+
+        # Remove it
+        config.remove_agent_file("backend", tmpdir)
+        assert not os.path.exists(agent_path)
 
 
 def test_agent_extra_context_save_and_load():

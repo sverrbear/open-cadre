@@ -47,9 +47,6 @@ class TeamConfig(BaseModel):
     agents: dict[str, AgentConfig] = Field(
         default_factory=lambda: {
             "lead": AgentConfig(model=AUTO_MODEL),
-            "architect": AgentConfig(model=AUTO_MODEL),
-            "engineer": AgentConfig(model=AUTO_MODEL),
-            "qa": AgentConfig(model=AUTO_MODEL),
         }
     )
 
@@ -192,6 +189,34 @@ class CadreConfig(BaseModel):
                 return tier.get(provider, f"{provider}/default")
         return tier["anthropic"]
 
+    def save_agent(self, agent_name: str, base_path: str | Path | None = None) -> None:
+        """Save a single agent's config to .cadre/agents/<name>.yml."""
+        base_path = Path(base_path) if base_path is not None else Path.cwd()
+        agents_dir = base_path / CADRE_DIR / AGENTS_DIR
+        agents_dir.mkdir(parents=True, exist_ok=True)
+
+        agent_cfg = self.team.agents.get(agent_name)
+        if not agent_cfg:
+            return
+
+        agent_data: dict[str, Any] = {
+            "model": agent_cfg.model,
+            "enabled": agent_cfg.enabled,
+        }
+        if agent_cfg.extra_context:
+            agent_data["extra_context"] = agent_cfg.extra_context
+
+        agent_path = agents_dir / f"{agent_name}.yml"
+        with open(agent_path, "w") as f:
+            yaml.dump(agent_data, f, default_flow_style=False, sort_keys=False)
+
+    def remove_agent_file(self, agent_name: str, base_path: str | Path | None = None) -> None:
+        """Delete a single agent's config file from .cadre/agents/."""
+        base_path = Path(base_path) if base_path is not None else Path.cwd()
+        agent_path = base_path / CADRE_DIR / AGENTS_DIR / f"{agent_name}.yml"
+        if agent_path.exists():
+            agent_path.unlink()
+
     def get_agent_config(self, agent_name: str) -> AgentConfig:
         """Get config for a specific agent."""
         return self.team.agents.get(agent_name, AgentConfig())
@@ -245,11 +270,18 @@ class CadreConfig(BaseModel):
             config_kwargs = {}
 
         # Load agent configs from .cadre/agents/
+        # Legacy name mapping for backward compatibility
+        legacy_agent_map = {
+            "architect": "data_architect",
+            "engineer": "analytics_engineer",
+        }
         agents_dir = cadre_dir / AGENTS_DIR
         if agents_dir.exists():
             agents = {}
             for agent_file in sorted(agents_dir.glob("*.yml")):
                 agent_name = agent_file.stem
+                # Remap legacy agent names
+                agent_name = legacy_agent_map.get(agent_name, agent_name)
                 with open(agent_file) as f:
                     agent_raw = yaml.safe_load(f) or {}
                 agents[agent_name] = AgentConfig(**agent_raw)

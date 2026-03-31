@@ -1,4 +1,4 @@
-"""QA Engineer agent preset — reviews implementations against designs."""
+"""Data QA agent preset — reviews data model implementations against designs."""
 
 from __future__ import annotations
 
@@ -15,10 +15,10 @@ if TYPE_CHECKING:
     from cadre.config import CadreConfig
 
 
-def create_qa(config: CadreConfig) -> Agent:
-    """Create the QA Engineer agent."""
+def create_data_qa(config: CadreConfig) -> Agent:
+    """Create the Data QA agent."""
     project = config.project
-    model = config.get_model("qa")
+    model = config.get_model("data_qa")
 
     system_prompt = f"""You are the QA Engineer for {project.name}.
 
@@ -53,7 +53,7 @@ Provide a structured review:
 ## Project Context
 - Project: {project.name}
 - Warehouse: {project.warehouse}
-{build_extra_context(config, "qa")}
+{build_extra_context(config, "data_qa")}
 ## Team Communication Protocol
 You have a `message_agent` tool to communicate with teammates.
 - **Report to the lead** before starting work: briefly state what you plan to do
@@ -70,8 +70,8 @@ You have a `message_agent` tool to communicate with teammates.
 """
 
     return Agent(
-        name="qa",
-        role="QA Engineer — reviews implementations against designs",
+        name="data_qa",
+        role="Data QA — reviews data model implementations against designs",
         system_prompt=system_prompt,
         model=model,
         tools=[

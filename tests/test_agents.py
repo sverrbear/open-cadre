@@ -60,6 +60,21 @@ def test_preset_factories(sample_config):
         assert len(agent.get_tool_schemas()) > 0
 
 
+def test_all_preset_names():
+    """Verify all expected presets are registered."""
+    expected = {
+        "lead",
+        "backend",
+        "frontend",
+        "data_architect",
+        "analytics_engineer",
+        "data_qa",
+        "qa",
+        "solo",
+    }
+    assert set(PRESET_FACTORIES.keys()) == expected
+
+
 def test_solo_preset(solo_config):
     factory = PRESET_FACTORIES["solo"]
     agent = factory(solo_config)

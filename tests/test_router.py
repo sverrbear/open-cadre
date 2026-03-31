@@ -11,8 +11,8 @@ def test_parse_mention(sample_config):
     team.setup()
     router = MessageRouter(team=team)
 
-    assert router._parse_mention("@engineer write a model") == "engineer"
-    assert router._parse_mention("@architect design something") == "architect"
+    assert router._parse_mention("@analytics_engineer write a model") == "analytics_engineer"
+    assert router._parse_mention("@data_architect design something") == "data_architect"
     assert router._parse_mention("just a regular message") is None
     assert router._parse_mention("@nonexistent do something") is None
 
