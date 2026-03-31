@@ -138,9 +138,11 @@ class MainScreen(Screen):
         sidebar.display = not sidebar.display
 
     def on_mount(self) -> None:
-        """Focus first card if any."""
+        """Focus first card if any, preferring the lead agent."""
         if self.agents:
-            self._selected_agent = self.agents[0].name
+            # Default to lead agent if available
+            lead = next((a for a in self.agents if a.name == "lead"), None)
+            self._selected_agent = lead.name if lead else self.agents[0].name
 
     def on_agent_card_selected(self, event: AgentCard.Selected) -> None:
         """Handle agent card click — open editor."""

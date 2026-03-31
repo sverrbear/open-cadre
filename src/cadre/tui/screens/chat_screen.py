@@ -108,6 +108,7 @@ class ChatScreen(Screen):
         self.session_id: str | None = None
         self._process: asyncio.subprocess.Process | None = None
         self._is_streaming = False
+        self._thinking = False
 
         # Initialize session settings from agent defaults
         self._session_settings = ChatSessionSettings()
@@ -204,6 +205,8 @@ class ChatScreen(Screen):
 
         input_widget.value = ""
         self._set_streaming(True)
+        self._thinking = True
+        log.write("[dim italic #89b4fa]Claude is thinking...[/dim italic #89b4fa]")
         self._send_message(message)
 
     def _set_streaming(self, streaming: bool) -> None:
@@ -307,15 +310,11 @@ class ChatScreen(Screen):
             if current_text:
                 log.write(f"[#a6e3a1]{current_text}[/#a6e3a1]")
                 current_text = ""
-
-            content = event.get("message", {}).get("content", [])
-            texts = []
-            for block in content:
-                if block.get("type") == "text":
-                    texts.append(block["text"])
-            if texts:
-                full_text = "".join(texts)
-                log.write(f"\n[bold #a6e3a1]Claude:[/bold #a6e3a1] [#a6e3a1]{full_text}[/#a6e3a1]")
+            # Clear thinking indicator and show Claude header
+            if self._thinking:
+                self._thinking = False
+            log.write("\n[bold #a6e3a1]Claude:[/bold #a6e3a1]")
+            # Text content will arrive via content_block_delta events
 
         elif event_type == "content_block_delta":
             delta = event.get("delta", {})
@@ -354,10 +353,7 @@ class ChatScreen(Screen):
             sid = event.get("session_id")
             if sid:
                 self.session_id = sid
-            # Show final result text if present
-            result = event.get("result", "")
-            if result and isinstance(result, str):
-                log.write(f"\n[bold #a6e3a1]Claude:[/bold #a6e3a1] [#a6e3a1]{result}[/#a6e3a1]")
+            # Text already shown via assistant + content_block_delta events
             log.write("")  # blank line separator
 
         return current_text
