@@ -85,6 +85,11 @@ class ChatPane(Widget):
         msg.append(f"  ⏸ {tool} requires approval", style="magenta")
         self.log.write(msg)
 
+    def clear(self) -> None:
+        """Clear the chat log and streaming buffer."""
+        self._streaming_buffer = ""
+        self.log.clear()
+
 
 def _format_args(args: dict) -> str:
     """Format tool call arguments for display."""
