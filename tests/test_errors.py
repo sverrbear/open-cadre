@@ -111,7 +111,7 @@ def test_classify_model_error():
     assert result.category == "model"
     assert "o3" in result.message
     assert "API key is valid" in result.hint
-    assert "fallback" in result.hint.lower()
+    assert "switch models" in result.hint.lower()
     assert result.original is original
 
 
