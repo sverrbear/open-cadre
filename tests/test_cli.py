@@ -18,7 +18,7 @@ def test_models_list():
     runner = CliRunner()
     result = runner.invoke(main, ["models", "list"])
     assert result.exit_code == 0
-    assert "claude" in result.output.lower() or "Benchmark" in result.output
+    assert "models" in result.output.lower() or "No providers configured" in result.output
 
 
 def test_models_benchmarks():

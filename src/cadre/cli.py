@@ -225,13 +225,39 @@ def models_set(agent: str, model: str):
 
 @models.command(name="list")
 def models_list():
-    """List available models from benchmarks."""
-    from cadre.benchmarks.data import BenchmarkData
+    """List available models from configured providers."""
+    import os
 
-    bench = BenchmarkData()
-    bench.render_table(console)
-    console.print("\n  [dim]Any LiteLLM-compatible model string is accepted.[/dim]")
-    console.print("  [dim]See https://docs.litellm.ai/docs/providers for all options.[/dim]\n")
+    from cadre.keys import PROVIDER_ENV_VARS, load_env
+    from cadre.providers.litellm_provider import list_provider_models
+
+    load_env()
+
+    found_any = False
+    for provider, env_var in PROVIDER_ENV_VARS.items():
+        if not os.environ.get(env_var):
+            continue
+        provider_models = list_provider_models(provider)
+        if provider_models:
+            found_any = True
+            console.print(f"\n  [bold cyan]{provider}[/bold cyan]  ({len(provider_models)} models)")
+            for m in provider_models:
+                console.print(f"    {m}")
+
+    # Always show ollama
+    ollama_models = list_provider_models("ollama")
+    if ollama_models:
+        found_any = True
+        console.print(f"\n  [bold cyan]ollama[/bold cyan]  ({len(ollama_models)} models)")
+        for m in ollama_models:
+            console.print(f"    {m}")
+
+    if not found_any:
+        console.print("\n  [yellow]No providers configured.[/yellow]")
+        console.print("  Run [bold]cadre init[/bold] to set up API keys.\n")
+    else:
+        console.print("\n  [dim]Any LiteLLM-compatible model string is also accepted.[/dim]")
+        console.print("  [dim]See https://docs.litellm.ai/docs/providers for all options.[/dim]\n")
 
 
 @models.command(name="benchmarks")

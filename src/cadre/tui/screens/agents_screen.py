@@ -12,7 +12,8 @@ from textual.widgets import Button, Checkbox, Input, Label, OptionList, Static, 
 from textual.widgets.option_list import Option
 
 from cadre.config import AUTO_MODEL, AgentConfig, CadreConfig
-from cadre.keys import check_key_for_model
+from cadre.keys import PROVIDER_ENV_VARS
+from cadre.providers.litellm_provider import list_provider_models
 
 # Short descriptions for preset agent roles
 AGENT_DESCRIPTIONS: dict[str, str] = {
@@ -23,39 +24,20 @@ AGENT_DESCRIPTIONS: dict[str, str] = {
     "solo": "All-in-one agent for solo mode",
 }
 
-# Recommended models per role — shown as suggestions in the detail editor
-RECOMMENDED_MODELS: dict[str, list[tuple[str, str]]] = {
-    "lead": [
-        ("anthropic/claude-sonnet-4-6", "Recommended — fast, good at coordination"),
-        ("anthropic/claude-opus-4-6", "Premium — best reasoning"),
-        ("openai/gpt-4o", "OpenAI alternative"),
-        ("deepseek/deepseek-chat", "Budget option"),
-    ],
-    "architect": [
-        ("anthropic/claude-sonnet-4-6", "Recommended — strong at design"),
-        ("anthropic/claude-opus-4-6", "Premium — deepest analysis"),
-        ("openai/o3", "OpenAI reasoning model"),
-        ("deepseek/deepseek-chat", "Budget option"),
-    ],
-    "engineer": [
-        ("anthropic/claude-sonnet-4-6", "Recommended — best for code generation"),
-        ("openai/gpt-4o", "OpenAI alternative"),
-        ("deepseek/deepseek-coder", "Budget — strong at code"),
-        ("anthropic/claude-haiku-4-5-20251001", "Fast and cheap"),
-    ],
-    "qa": [
-        ("anthropic/claude-sonnet-4-6", "Recommended — thorough reviews"),
-        ("openai/gpt-4o", "OpenAI alternative"),
-        ("anthropic/claude-haiku-4-5-20251001", "Fast and cheap"),
-        ("deepseek/deepseek-chat", "Budget option"),
-    ],
-    "solo": [
-        ("anthropic/claude-sonnet-4-6", "Recommended — good all-rounder"),
-        ("anthropic/claude-opus-4-6", "Premium — best quality"),
-        ("openai/gpt-4o", "OpenAI alternative"),
-        ("deepseek/deepseek-chat", "Budget option"),
-    ],
-}
+
+def _get_available_models() -> list[str]:
+    """Return chat models from all providers that have an API key configured."""
+    import os
+
+    models: list[str] = []
+    for provider, env_var in PROVIDER_ENV_VARS.items():
+        if os.environ.get(env_var):
+            models.extend(list_provider_models(provider))
+
+    # Also include ollama (no key needed)
+    models.extend(list_provider_models("ollama"))
+
+    return models
 
 
 class AgentsScreen(ModalScreen[CadreConfig | None]):
@@ -118,7 +100,7 @@ class AgentsScreen(ModalScreen[CadreConfig | None]):
     }
 
     #model-suggestions {
-        height: 5;
+        height: 8;
         margin-bottom: 1;
     }
 
@@ -221,15 +203,13 @@ class AgentsScreen(ModalScreen[CadreConfig | None]):
         self.query_one("#agent-enabled", Checkbox).value = agent_cfg.enabled
         self.query_one("#agent-context", TextArea).text = agent_cfg.extra_context
 
-        # Populate model suggestions — auto first, then role-based (filtered by available keys)
+        # Populate model suggestions — auto first, then available models from providers
         suggestions = self.query_one("#model-suggestions", OptionList)
         suggestions.clear_options()
         resolved = self.config.get_model(agent_name)
         suggestions.add_option(Option(f"{'auto':35s} Auto-select ({resolved})", id=AUTO_MODEL))
-        recommended = RECOMMENDED_MODELS.get(agent_name, RECOMMENDED_MODELS["solo"])
-        for model_id, hint in recommended:
-            if check_key_for_model(model_id):
-                suggestions.add_option(Option(f"{model_id:35s} {hint}", id=model_id))
+        for model_id in _get_available_models():
+            suggestions.add_option(Option(model_id, id=model_id))
 
         self.query_one("#list-view").display = False
         self.query_one("#detail-view").display = True
