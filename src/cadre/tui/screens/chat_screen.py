@@ -95,6 +95,35 @@ class ChatScreen(Screen):
         scrollbar-size: 1 1;
     }
 
+    #command-palette {
+        dock: bottom;
+        height: auto;
+        max-height: 12;
+        background: #313244;
+        padding: 1 2;
+        display: none;
+        border-top: solid #45475a;
+    }
+
+    .cmd-item {
+        height: 1;
+        padding: 0 1;
+        color: #cdd6f4;
+    }
+
+    .cmd-item:hover {
+        background: #45475a;
+    }
+
+    .cmd-name {
+        color: #89b4fa;
+        text-style: bold;
+    }
+
+    .cmd-desc {
+        color: #6c7086;
+    }
+
     #chat-input-bar {
         height: 3;
         background: #313244;
@@ -130,15 +159,20 @@ class ChatScreen(Screen):
     class GoBack(Message):
         pass
 
+    class OpenDashboard(Message):
+        pass
+
     def __init__(
         self,
         agent: str = "",
         agent_info: AgentInfo | None = None,
+        show_welcome: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
         self.agent = agent
         self._agent_info = agent_info
+        self._show_welcome = show_welcome
         self.session_id: str | None = None
         self._process: asyncio.subprocess.Process | None = None
         self._is_streaming = False
@@ -172,9 +206,11 @@ class ChatScreen(Screen):
                 id="chat-log",
             )
             yield Label("", id="thinking-indicator")
+            with Vertical(id="command-palette"):
+                pass  # populated dynamically
             with Horizontal(id="chat-input-bar"):
                 yield Input(
-                    placeholder="Type a message...",
+                    placeholder="Type a message or / for commands...",
                     id="chat-input",
                 )
                 yield Button("Send", variant="primary", id="send-btn")
@@ -182,8 +218,20 @@ class ChatScreen(Screen):
 
     def on_mount(self) -> None:
         log = self.query_one("#chat-log", RichLog)
-        agent_hint = f" with agent [bold]{self.agent}[/bold]" if self.agent else ""
-        log.write(f"[dim]Connected to Claude Code{agent_hint}. Type a message to begin.[/dim]\n")
+        if self._show_welcome:
+            log.write(
+                "[bold #89b4fa]Welcome to OpenCadre![/bold #89b4fa]\n\n"
+                "Type [bold]/[/bold] to see available commands, or start with:\n\n"
+                "  [bold #89b4fa]/init[/bold #89b4fa]     Set up your lead agent\n"
+                "  [bold #89b4fa]/explore[/bold #89b4fa]  Analyze your repo and build a team\n\n"
+                "[dim]Or just type a message to chat with Claude directly.[/dim]\n"
+            )
+        else:
+            agent_hint = f" with agent [bold]{self.agent}[/bold]" if self.agent else ""
+            log.write(
+                f"[dim]Connected to Claude Code{agent_hint}. "
+                "Type a message or [bold]/[/bold] for commands.[/dim]\n"
+            )
         self.query_one("#chat-input", Input).focus()
         self._update_settings_summary()
 
@@ -237,6 +285,15 @@ class ChatScreen(Screen):
         if not message or self._is_streaming:
             return
 
+        # Hide command palette on submit
+        self._hide_command_palette()
+
+        # Check for slash commands
+        if message.startswith("/"):
+            input_widget.value = ""
+            self._dispatch_command(message)
+            return
+
         log = self.query_one("#chat-log", RichLog)
         log.write(f"\n[bold #cdd6f4]You:[/bold #cdd6f4] {message}\n")
 
@@ -245,6 +302,19 @@ class ChatScreen(Screen):
         self._thinking = True
         self._start_thinking_animation()
         self._send_message(message)
+
+    @work(thread=False)
+    async def _dispatch_command(self, text: str) -> None:
+        """Dispatch a slash command."""
+        from cadre.tui.commands import dispatch
+
+        handled = await dispatch(self, text)
+        if not handled:
+            log = self.query_one("#chat-log", RichLog)
+            log.write(
+                f"[bold yellow]Unknown command:[/bold yellow] {text}\n"
+                "[dim]Type [bold]/help[/bold] to see available commands.[/dim]\n"
+            )
 
     def _start_thinking_animation(self) -> None:
         """Start the animated thinking indicator."""
@@ -445,7 +515,84 @@ class ChatScreen(Screen):
 
         return current_text
 
+    def on_input_changed(self, event: Input.Changed) -> None:
+        """Show/hide command palette based on input."""
+        if event.input.id != "chat-input":
+            return
+        value = event.value.strip()
+        if value.startswith("/"):
+            self._show_command_palette(value)
+        else:
+            self._hide_command_palette()
+
+    def _show_command_palette(self, filter_text: str) -> None:
+        """Show the command palette with filtered commands."""
+        from cadre.tui.commands import COMMANDS
+
+        palette = self.query_one("#command-palette", Vertical)
+
+        # Remove existing items
+        palette.remove_children()
+
+        # Filter commands
+        prefix = filter_text.lower()
+        matches = [
+            cmd for name, cmd in COMMANDS.items() if name.startswith(prefix) or prefix == "/"
+        ]
+
+        if not matches:
+            self._hide_command_palette()
+            return
+
+        for cmd in matches:
+            label = Label(
+                f"[bold #89b4fa]{cmd.name:<12}[/bold #89b4fa] [#6c7086]{cmd.description}[/#6c7086]",
+                classes="cmd-item",
+            )
+            label.data = cmd.name  # store command name for click handling
+            palette.mount(label)
+
+        palette.display = True
+
+    def _hide_command_palette(self) -> None:
+        """Hide the command palette."""
+        try:
+            palette = self.query_one("#command-palette", Vertical)
+            palette.display = False
+        except Exception:
+            pass
+
+    def on_click(self, event) -> None:
+        """Handle clicks on command palette items."""
+        widget = event.widget if hasattr(event, "widget") else None
+        if widget and hasattr(widget, "data") and isinstance(getattr(widget, "data", None), str):
+            cmd_name = widget.data
+            if cmd_name.startswith("/"):
+                input_widget = self.query_one("#chat-input", Input)
+                input_widget.value = cmd_name
+                self._hide_command_palette()
+                self._submit_input()
+
+    def set_agent(self, agent_name: str, agent_info: AgentInfo | None = None) -> None:
+        """Switch the active agent mid-session."""
+        self.agent = agent_name
+        self._agent_info = agent_info
+        self.session_id = None  # reset session for new agent
+
+        # Update header
+        agent_label = f"  agent: {self.agent}" if self.agent else ""
+        self.query_one("#chat-title", Label).update(f"Chat with Claude Code{agent_label}")
+
+        # Update settings from agent info
+        if agent_info:
+            self._session_settings.permission_mode = agent_info.permission_mode or ""
+            self._session_settings.model = agent_info.model or ""
+            self._session_settings.effort = agent_info.effort or ""
+            self._update_settings_summary()
+
     def action_go_back(self) -> None:
         if self._is_streaming:
             self._stop_streaming()
-        self.post_message(self.GoBack())
+        # Only navigate back if not the root screen
+        if len(self.app.screen_stack) > 2:
+            self.post_message(self.GoBack())
