@@ -90,6 +90,50 @@ class UsageStats:
     cost: float = 0.0
 
 
+# Lightweight endpoints to validate API keys without making a real completion call.
+_VALIDATION_ENDPOINTS: dict[str, str] = {
+    "openai": "https://api.openai.com/v1/models",
+    "deepseek": "https://api.deepseek.com/v1/models",
+}
+
+
+async def _ping_provider(provider: str, api_key: str, api_base: str | None = None) -> None:
+    """Validate an API key by hitting a lightweight endpoint.
+
+    Raises ``litellm.AuthenticationError`` if the key is rejected (HTTP 401/403),
+    or re-raises connection errors so the caller can classify them properly.
+    """
+    import httpx
+
+    url = _VALIDATION_ENDPOINTS.get(provider)
+    if url is None:
+        return  # No known validation endpoint — skip
+
+    if api_base:
+        url = f"{api_base.rstrip('/')}/v1/models"
+
+    headers = {"Authorization": f"Bearer {api_key}"}
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url, headers=headers)
+        if resp.status_code in (401, 403):
+            raise litellm.AuthenticationError(
+                message=(
+                    f"API key rejected by {provider} (HTTP {resp.status_code}). "
+                    f"The key may be invalid, expired, or revoked. "
+                    f"Update it with: cadre keys set {provider} <your-key>"
+                ),
+                model="",
+                llm_provider=provider,
+            )
+    except litellm.AuthenticationError:
+        raise
+    except httpx.ConnectError:
+        raise
+    except Exception:
+        pass
+
+
 @dataclass
 class LiteLLMProvider:
     """LLM provider backed by LiteLLM (Anthropic, OpenAI, Google, Ollama, etc.)."""
@@ -97,6 +141,7 @@ class LiteLLMProvider:
     api_keys: dict[str, str] = field(default_factory=dict)
     api_bases: dict[str, str] = field(default_factory=dict)
     total_cost: float = 0.0
+    _validated_providers: set[str] = field(default_factory=set, repr=False)
 
     def __post_init__(self) -> None:
         # Suppress LiteLLM's noisy logging
@@ -171,6 +216,12 @@ class LiteLLMProvider:
             kwargs["api_key"] = api_key
         if provider_name in self.api_bases:
             kwargs["api_base"] = self.api_bases[provider_name]
+
+        # One-time key validation per provider — catches invalid/expired keys
+        # before litellm wraps the error as a confusing InternalServerError.
+        if api_key and provider_name and provider_name not in self._validated_providers:
+            await _ping_provider(provider_name, api_key, self.api_bases.get(provider_name))
+            self._validated_providers.add(provider_name)
 
         response = await litellm.acompletion(**kwargs)
 
