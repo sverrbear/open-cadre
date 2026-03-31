@@ -8,17 +8,6 @@ from typing import Any
 
 import litellm
 
-
-class ModelError(Exception):
-    """Error for a specific model when the provider key is known to be valid."""
-
-    def __init__(self, model: str, provider: str, original: Exception) -> None:
-        self.model = model
-        self.provider = provider
-        self.original = original
-        super().__init__(str(original))
-
-
 # Provider names in litellm.models_by_provider that map to our provider names
 _PROVIDER_ALIASES: dict[str, list[str]] = {
     "anthropic": ["anthropic"],
@@ -108,17 +97,19 @@ _VALIDATION_ENDPOINTS: dict[str, str] = {
 }
 
 
-async def _ping_provider(provider: str, api_key: str, api_base: str | None = None) -> None:
+async def _ping_provider(provider: str, api_key: str, api_base: str | None = None) -> bool:
     """Validate an API key by hitting a lightweight endpoint.
 
-    Raises ``litellm.AuthenticationError`` if the key is rejected (HTTP 401/403),
-    or re-raises connection errors so the caller can classify them properly.
+    Returns ``True`` if the key was validated, ``False`` if validation could not
+    be performed (e.g. network issue or no known endpoint).
+
+    Raises ``litellm.AuthenticationError`` if the key is rejected (HTTP 401/403).
     """
     import httpx
 
     url = _VALIDATION_ENDPOINTS.get(provider)
     if url is None:
-        return  # No known validation endpoint — skip
+        return False  # No known validation endpoint — can't validate
 
     if api_base:
         url = f"{api_base.rstrip('/')}/v1/models"
@@ -137,12 +128,13 @@ async def _ping_provider(provider: str, api_key: str, api_base: str | None = Non
                 model="",
                 llm_provider=provider,
             )
+        return True
     except litellm.AuthenticationError:
         raise
     except httpx.ConnectError:
-        pass  # Don't block on validation endpoint issues; real call will surface them
+        return False  # Can't validate — network issue
     except Exception:
-        pass
+        return False
 
 
 @dataclass
@@ -231,37 +223,18 @@ class LiteLLMProvider:
         # One-time key validation per provider — catches invalid/expired keys
         # before litellm wraps the error as a confusing InternalServerError.
         if api_key and provider_name and provider_name not in self._validated_providers:
-            await _ping_provider(provider_name, api_key, self.api_bases.get(provider_name))
-            self._validated_providers.add(provider_name)
+            validated = await _ping_provider(
+                provider_name, api_key, self.api_bases.get(provider_name)
+            )
+            if validated:
+                self._validated_providers.add(provider_name)
 
-        try:
-            response = await litellm.acompletion(**kwargs)
-        except Exception as e:
-            # If the provider was already validated (key works for other models),
-            # wrap model-specific failures as ModelError so the agent loop can
-            # try a fallback.  Connection/auth/rate errors are NOT model-specific
-            # — changing models won't fix them — so let them propagate as-is.
-            if provider_name in self._validated_providers:
-                etype = type(e).__name__
-                emsg = str(e).lower()
-                is_conn = (
-                    etype
-                    in (
-                        "APIConnectionError",
-                        "Timeout",
-                        "APITimeoutError",
-                    )
-                    or "connection" in emsg
-                )
-                is_auth = etype == "AuthenticationError" or "authentication" in emsg
-                is_rate = etype == "RateLimitError" or "rate limit" in emsg
-                if not (is_conn or is_auth or is_rate):
-                    raise ModelError(model, provider_name, e) from e
-            raise
+        response = await litellm.acompletion(num_retries=3, timeout=30, **kwargs)
 
         if stream:
             collected_content = ""
             collected_tool_calls: list[dict] = []
+            chunk = None
             async for chunk in response:
                 delta = chunk.choices[0].delta if chunk.choices else None
                 if delta is None:
@@ -278,7 +251,11 @@ class LiteLLMProvider:
                         idx = tc_delta.index
                         while len(collected_tool_calls) <= idx:
                             collected_tool_calls.append(
-                                {"id": "", "function": {"name": "", "arguments": ""}}
+                                {
+                                    "id": "",
+                                    "type": "function",
+                                    "function": {"name": "", "arguments": ""},
+                                }
                             )
                         if tc_delta.id:
                             collected_tool_calls[idx]["id"] = tc_delta.id
@@ -299,7 +276,7 @@ class LiteLLMProvider:
             yield {"type": "message_complete", "message": msg}
 
             # Track cost
-            if hasattr(chunk, "usage") and chunk.usage:
+            if chunk is not None and hasattr(chunk, "usage") and chunk.usage:
                 self._track_cost(model, chunk.usage)
         else:
             # Non-streaming
@@ -311,6 +288,7 @@ class LiteLLMProvider:
                 msg["tool_calls"] = [
                     {
                         "id": tc.id,
+                        "type": "function",
                         "function": {
                             "name": tc.function.name,
                             "arguments": tc.function.arguments,

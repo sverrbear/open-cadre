@@ -82,14 +82,8 @@ def test_solo_preset(solo_config):
     assert agent.can_write_code is True
 
 
-def test_get_fallback_model():
-    """AgentLoop._get_fallback_model returns mid-tier for the same provider."""
+def test_agent_loop_has_no_fallback():
+    """AgentLoop does not implement automatic model fallback — users manage models."""
     from cadre.agents.loop import AgentLoop
 
-    assert AgentLoop._get_fallback_model("openai/gpt-4.1") == "openai/gpt-4o"
-    fallback = AgentLoop._get_fallback_model("anthropic/claude-opus-4-6")
-    assert fallback == "anthropic/claude-sonnet-4-6"
-    # Mid-tier model has no further fallback
-    assert AgentLoop._get_fallback_model("openai/gpt-4o") is None
-    # No provider prefix → no fallback
-    assert AgentLoop._get_fallback_model("gpt-4o") is None
+    assert not hasattr(AgentLoop, "_get_fallback_model")
