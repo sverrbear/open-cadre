@@ -48,7 +48,8 @@ def classify_llm_error(error: Exception) -> CadreError:
         return CadreError(
             category="connection",
             message="Could not connect to the API",
-            hint="Check your internet connection. If using Ollama, ensure it's running.",
+            hint="Check your internet connection and API key."
+            " If using Ollama, ensure it's running.",
             original=error,
         )
 
