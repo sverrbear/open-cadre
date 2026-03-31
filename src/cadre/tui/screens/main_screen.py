@@ -159,9 +159,7 @@ class MainScreen(Screen):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "launch-btn":
             info = self._get_selected_agent_info()
-            self.post_message(
-                self.LaunchClaude(agent=self._selected_agent or "", agent_info=info)
-            )
+            self.post_message(self.LaunchClaude(agent=self._selected_agent or "", agent_info=info))
         elif event.button.id == "new-btn":
             self.action_new_agent()
         elif event.button.id == "team-btn":
@@ -169,9 +167,7 @@ class MainScreen(Screen):
 
     def action_launch_claude(self) -> None:
         info = self._get_selected_agent_info()
-        self.post_message(
-            self.LaunchClaude(agent=self._selected_agent or "", agent_info=info)
-        )
+        self.post_message(self.LaunchClaude(agent=self._selected_agent or "", agent_info=info))
 
     def action_new_agent(self) -> None:
         from cadre.tui.screens.agent_editor import AgentEditorScreen
