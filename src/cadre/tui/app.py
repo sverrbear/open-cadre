@@ -30,6 +30,7 @@ class CadreTUI(App):
         self.config = config
         self.theme_registry = ThemeRegistry(project_path=Path.cwd())
         self.main_screen: MainScreen | None = None
+        self._active_agents: set[str] = set()
 
         theme_name = config.ui.theme
         self._css_path = [self.theme_registry.get_css_path(theme_name)]
@@ -53,7 +54,9 @@ class CadreTUI(App):
     def on_mount(self) -> None:
         """Push the main screen."""
         agents = list_agents()
-        self.main_screen = MainScreen(config=self.config, agents=agents)
+        self.main_screen = MainScreen(
+            config=self.config, agents=agents, active_agents=self._active_agents
+        )
         self.push_screen(self.main_screen)
 
         # Check claude CLI
@@ -107,17 +110,38 @@ class CadreTUI(App):
 
         from cadre.tui.screens.chat_screen import ChatScreen
 
+        if event.agent:
+            self._active_agents.add(event.agent)
+            self._refresh_main_screen()
         self.push_screen(ChatScreen(agent=event.agent, agent_info=event.agent_info))
 
     def on_chat_screen_go_back(self, _event) -> None:
         """Handle chat screen back navigation."""
+        # Get agent name from the chat screen before popping
+        screen = self.screen
+        if hasattr(screen, "agent") and screen.agent:
+            self._active_agents.discard(screen.agent)
         self.pop_screen()
+        self._refresh_main_screen()
 
     def on_main_screen_agents_changed(self, _event: MainScreen.AgentsChanged) -> None:
         """Refresh the main screen when agents change."""
         agents = list_agents()
         self.pop_screen()
-        self.main_screen = MainScreen(config=self.config, agents=agents)
+        self.main_screen = MainScreen(
+            config=self.config, agents=agents, active_agents=self._active_agents
+        )
+        self.push_screen(self.main_screen)
+
+    def _refresh_main_screen(self) -> None:
+        """Rebuild the main screen to reflect updated agent status."""
+        if self.main_screen is None:
+            return
+        agents = list_agents()
+        self.pop_screen()
+        self.main_screen = MainScreen(
+            config=self.config, agents=agents, active_agents=self._active_agents
+        )
         self.push_screen(self.main_screen)
 
     def action_toggle_sidebar(self) -> None:
