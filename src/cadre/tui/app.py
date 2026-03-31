@@ -157,12 +157,12 @@ class CadreTUI(App):
 
     def action_focus_input(self) -> None:
         """Focus the input bar on the active screen."""
+        import contextlib
+
         from textual.widgets import Input
 
-        try:
+        with contextlib.suppress(Exception):
             self.screen.query_one("#chat-input", Input).focus()
-        except Exception:
-            pass
 
     def on_unmount(self) -> None:
         """Persist config on exit."""
