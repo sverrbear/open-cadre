@@ -15,7 +15,7 @@ pytest
 pytest tests/test_agents.py
 
 # Run a single test
-pytest tests/test_agents.py::test_agent_creation -v
+pytest tests/test_agents.py::test_parse_frontmatter -v
 
 # Lint
 ruff check src/ tests/
@@ -32,27 +32,35 @@ ruff format src/ tests/
 
 ## Architecture
 
-OpenCadre is a provider-agnostic AI team platform for data engineering. Users configure teams of specialized AI agents that collaborate via a terminal UI.
+OpenCadre is a **Claude Code team management frontend**. It provides a TUI for creating, editing, and managing Claude Code agent teams via `.claude/agents/*.md` files, then launching Claude Code with those agents active.
 
-**Layered architecture (bottom-up):**
+**Layers:**
 
-1. **Providers** (`src/cadre/providers/`) — LiteLLM-based unified interface to 100+ LLM providers. `LiteLLMProvider` handles async streaming. `ProviderRegistry` manages API keys.
+1. **Agent Manager** (`src/cadre/agents/manager.py`) — CRUD for `.claude/agents/*.md` files. Parses/generates markdown with YAML frontmatter (name, description, model, tools, maxTurns, effort, permissionMode). Key types: `AgentInfo` dataclass, functions: `list_agents`, `load_agent`, `save_agent`, `delete_agent`, `install_preset`, `install_team`, `check_claude_cli`.
 
-2. **Tools** (`src/cadre/tools/`) — `Tool` base class produces OpenAI-format schemas. Implementations: file_ops, git, dbt, shell, search. `ToolRegistry` for central registration. Shell tools use `shell_allow`/`shell_deny` permission patterns from config.
+2. **Presets** (`src/cadre/presets/`) — Ready-made agent templates as `.md` files: lead, engineer, architect, qa, solo. Team presets in `TEAM_PRESETS`: full (4 agents), solo, dev, review. Functions: `list_presets`, `load_preset`, `list_team_presets`.
 
-3. **Agents** (`src/cadre/agents/`) — `Agent` holds role, model, tools, history. `AgentLoop` runs the tool-calling loop (max 25 iterations). Five presets via `PRESET_FACTORIES`: Team Lead, Architect, Engineer, QA, Solo.
+3. **TUI** (`src/cadre/tui/`) — Textual-based terminal UI.
+   - `app.py` — Main `CadreTUI` app. Launches main screen, handles Claude Code launch (suspends TUI, runs `claude` subprocess), agent refresh.
+   - `screens/main_screen.py` — Agent dashboard with cards, action buttons (Launch Claude, New Agent, Install Team).
+   - `screens/agent_editor.py` — Modal form for creating/editing agents (name, description, model, tools, effort, system prompt).
+   - `screens/team_picker.py` — Modal for selecting and installing team presets.
+   - `screens/settings_screen.py` — Theme and UI settings.
+   - `widgets/header_bar.py` — Top bar with keybind hints.
+   - `widgets/status_sidebar.py` — Sidebar showing installed agents.
+   - `themes/` — TCSS theme files (dark, light, monokai).
 
-4. **Orchestration** (`src/cadre/orchestrator/`) — `Team` manages agent lifecycle. `MessageRouter` parses @mentions and dispatches to agents. `Session` tracks conversation state.
+4. **CLI** (`src/cadre/cli.py`) — Click-based. Entry points: `cadre` and `opencadre`.
+   - `opencadre` (no args) — Launch TUI
+   - `opencadre init [preset]` — Install team preset (full/solo/dev/review)
+   - `opencadre agents` — List installed agents
+   - `opencadre chat [agent]` — Launch Claude Code directly
+   - `opencadre doctor` — Check prerequisites (Python, claude CLI, agents)
+   - `opencadre up` — Launch TUI
 
-5. **Workflows** (`src/cadre/workflows/`) — `WorkflowEngine` executes multi-step `WorkflowDef`s, accumulating context between steps. Steps can have conditions and approval gates. Three presets: design-implement-review, code-review, model-creation.
+5. **Config** (`src/cadre/config.py`) — Minimal Pydantic config: `ProjectConfig` (name), `TeamConfig` (mode, preset), `UIConfig` (theme, sidebar_visible). Saved to `.cadre/config.yml`.
 
-6. **UI** (`src/cadre/ui/`) — Rich-based terminal app. `ChatUI` for interactive chat, `StatusUI` for team status display.
-
-7. **CLI** (`src/cadre/cli.py`) — Click-based. Entry points: `cadre` and `opencadre` (both map to `cadre.cli:main`). Running with no subcommand shows a welcome screen with ASCII logo. Commands: init, explore, up, chat, status, models, workflow, doctor, config. The chat UI supports slash commands (`/help`, `/status`, `/explore`, `/models`, `/doctor`, `/config`, `/workflow`).
-
-**Configuration system:** Lives in `.cadre/` directory — `config.yml` (main), `agents/<name>.yml` (per-agent), `context.yml` (auto-populated project context). Supports `${ENV_VAR}` substitution. Legacy `cadre.yml` also supported.
-
-**Event system:** `AgentEvent` types (content_delta, tool_call, response, error, status) flow from AgentLoop through Router/WorkflowEngine to the UI layer.
+**Key concept:** Agents are native Claude Code `.claude/agents/*.md` files with YAML frontmatter. OpenCadre manages these files — it does NOT implement its own LLM provider, tools, or agent execution. Claude Code handles all of that natively.
 
 ## Code Conventions
 
@@ -60,10 +68,9 @@ OpenCadre is a provider-agnostic AI team platform for data engineering. Users co
 - Line length: 100 characters
 - Ruff rules: E, F, I, N, W, UP, B, SIM, RUF
 - Tests use `asyncio_mode = "auto"` — async tests are detected automatically
-- Shared test fixtures (`sample_config`, `solo_config`) in `tests/conftest.py`
-- Templates use Jinja2 (`src/cadre/templates/`)
+- Shared test fixtures in `tests/conftest.py`
 
 ## Workflow Reminders
 
-- When making changes that affect CLI commands, slash commands, configuration, or user-facing features, check whether `README.md` needs to be updated
+- When making changes that affect CLI commands, configuration, or user-facing features, check whether `README.md` needs to be updated
 - Always create new branches from `main` (checkout main first, then create the branch)

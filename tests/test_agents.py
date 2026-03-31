@@ -1,89 +1,123 @@
-"""Tests for agent creation and configuration."""
+"""Tests for agent manager."""
 
 from __future__ import annotations
 
-from cadre.agents.base import Agent, AgentStatus
-from cadre.agents.presets import PRESET_FACTORIES
-from cadre.tools.file_ops import FileReadTool
+import tempfile
+from pathlib import Path
+
+from cadre.agents.manager import (
+    AgentInfo,
+    _agent_to_markdown,
+    _parse_frontmatter,
+    delete_agent,
+    install_preset,
+    install_team,
+    list_agents,
+    load_agent,
+    save_agent,
+)
 
 
-def test_agent_creation():
-    agent = Agent(
+def test_parse_frontmatter():
+    content = """---
+name: test
+description: A test agent
+model: sonnet
+tools: Read, Write, Bash
+maxTurns: 10
+---
+
+You are a test agent."""
+
+    fm, body = _parse_frontmatter(content)
+    assert fm["name"] == "test"
+    assert fm["description"] == "A test agent"
+    assert fm["model"] == "sonnet"
+    assert fm["tools"] == "Read, Write, Bash"
+    assert fm["maxTurns"] == "10"
+    assert body == "You are a test agent."
+
+
+def test_parse_frontmatter_no_frontmatter():
+    fm, body = _parse_frontmatter("Just plain text")
+    assert fm == {}
+    assert body == "Just plain text"
+
+
+def test_agent_to_markdown():
+    agent = AgentInfo(
         name="test",
-        role="Test agent",
+        description="A test agent",
+        model="sonnet",
+        tools=["Read", "Write"],
+        max_turns=10,
         system_prompt="You are a test agent.",
-        model="anthropic/claude-sonnet-4-6",
     )
-    assert agent.name == "test"
-    assert agent.status == AgentStatus.IDLE
-    assert agent.history == []
+    md = _agent_to_markdown(agent)
+    assert "name: test" in md
+    assert "description: A test agent" in md
+    assert "model: sonnet" in md
+    assert "tools: Read, Write" in md
+    assert "maxTurns: 10" in md
+    assert "You are a test agent." in md
 
 
-def test_agent_tool_schemas():
-    tool = FileReadTool()
-    agent = Agent(
-        name="test",
-        role="Test",
-        system_prompt="test",
-        model="test",
-        tools=[tool],
-    )
-    schemas = agent.get_tool_schemas()
-    assert len(schemas) == 1
-    assert schemas[0]["function"]["name"] == "file_read"
+def test_save_and_load_agent():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        agent = AgentInfo(
+            name="test",
+            description="Test agent",
+            model="haiku",
+            tools=["Read"],
+            system_prompt="Hello",
+        )
+        save_agent(agent, Path(tmpdir))
+        loaded = load_agent("test", Path(tmpdir))
+        assert loaded.name == "test"
+        assert loaded.description == "Test agent"
+        assert loaded.model == "haiku"
+        assert loaded.tools == ["Read"]
+        assert loaded.system_prompt == "Hello"
 
 
-def test_agent_history():
-    agent = Agent(name="test", role="Test", system_prompt="test", model="test")
-    agent.add_message("user", "hello")
-    assert len(agent.history) == 1
-    assert agent.history[0]["role"] == "user"
-    agent.clear_history()
-    assert len(agent.history) == 0
+def test_list_agents():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # No agents dir yet
+        agents = list_agents(Path(tmpdir))
+        assert agents == []
+
+        # Create one
+        save_agent(
+            AgentInfo(name="a", description="Agent A", system_prompt="A"),
+            Path(tmpdir),
+        )
+        agents = list_agents(Path(tmpdir))
+        assert len(agents) == 1
+        assert agents[0].name == "a"
 
 
-def test_agent_find_tool():
-    tool = FileReadTool()
-    agent = Agent(name="test", role="Test", system_prompt="test", model="test", tools=[tool])
-    assert agent.get_tool("file_read") is not None
-    assert agent.get_tool("nonexistent") is None
+def test_delete_agent():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        save_agent(
+            AgentInfo(name="deleteme", system_prompt=""),
+            Path(tmpdir),
+        )
+        assert len(list_agents(Path(tmpdir))) == 1
+        delete_agent("deleteme", Path(tmpdir))
+        assert len(list_agents(Path(tmpdir))) == 0
 
 
-def test_preset_factories(sample_config):
-    for name, factory in PRESET_FACTORIES.items():
-        if name == "solo":
-            continue  # solo needs solo config
-        agent = factory(sample_config)
-        assert agent.name == name
-        assert agent.model != ""
-        assert len(agent.tools) > 0
-        assert len(agent.get_tool_schemas()) > 0
+def test_install_preset():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        agent = install_preset("lead", Path(tmpdir))
+        assert agent.name == "lead"
+        assert agent.description != ""
+        assert (Path(tmpdir) / ".claude" / "agents" / "lead.md").exists()
 
 
-def test_all_preset_names():
-    """Verify all expected presets are registered."""
-    expected = {
-        "lead",
-        "backend",
-        "frontend",
-        "data_architect",
-        "analytics_engineer",
-        "data_qa",
-        "qa",
-        "solo",
-    }
-    assert set(PRESET_FACTORIES.keys()) == expected
-
-
-def test_solo_preset(solo_config):
-    factory = PRESET_FACTORIES["solo"]
-    agent = factory(solo_config)
-    assert agent.name == "solo"
-    assert agent.can_write_code is True
-
-
-def test_agent_loop_has_no_fallback():
-    """AgentLoop does not implement automatic model fallback — users manage models."""
-    from cadre.agents.loop import AgentLoop
-
-    assert not hasattr(AgentLoop, "_get_fallback_model")
+def test_install_team():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        agents = install_team("full", Path(tmpdir))
+        assert len(agents) == 4
+        names = {a.name for a in agents}
+        assert names == {"lead", "engineer", "architect", "qa"}

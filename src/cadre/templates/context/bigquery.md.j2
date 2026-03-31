@@ -1,7 +1,0 @@
-### BigQuery-Specific Notes
-- Use `TIMESTAMP` for timezone-aware timestamps, `DATETIME` for timezone-naive
-- Use `INT64` for integers, `STRING` for text
-- Incremental strategy: prefer `merge` (BigQuery handles it efficiently)
-- Partitioning: partition large tables by date column (`partition_by`)
-- Clustering: add up to 4 clustering columns for query performance
-- Use `SAFE_CAST` instead of `CAST` to avoid runtime errors

@@ -1,7 +1,0 @@
-### Snowflake-Specific Notes
-- Use `TIMESTAMP_NTZ` for timezone-naive timestamps, `TIMESTAMP_LTZ` for timezone-aware
-- Prefer `VARCHAR` over `STRING` (both work, but VARCHAR is conventional)
-- Use `NUMBER(38,0)` for integer surrogates
-- Incremental strategy: prefer `delete+insert` for idempotency, `merge` when needed
-- Clustering keys: add for large tables queried by specific columns
-- Transient tables: use for staging/intermediate models to reduce Time Travel costs

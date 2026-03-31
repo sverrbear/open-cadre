@@ -1,7 +1,0 @@
-### Redshift-Specific Notes
-- Use `TIMESTAMP` for timestamps, `VARCHAR(MAX)` for variable-length text
-- Use `BIGINT` for integer surrogates
-- Distribution keys: choose based on join patterns (`dist` style)
-- Sort keys: add for frequently filtered columns (`sort` style)
-- Incremental strategy: prefer `delete+insert` (Redshift merge is expensive)
-- Use `GETDATE()` instead of `CURRENT_TIMESTAMP` for compatibility
